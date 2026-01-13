@@ -87,8 +87,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     setIsCameraActive(true);
-                    // Automatically show controls when camera starts for the first time
-                    setShowCameraControls(true);
                     
                     const track = stream.getVideoTracks()[0];
                     if (track.getCapabilities) {
@@ -132,6 +130,16 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 // If camera is already active, start recording
                 startRecording();
             }
+        }
+    };
+
+    const handleSettingsClick = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isCameraActive) {
+            await toggleCamera();
+            setShowCameraControls(true);
+        } else {
+            setShowCameraControls(prev => !prev);
         }
     };
 
@@ -399,16 +407,14 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </button>
                     
-                    {/* Camera Advanced Settings Toggle - ALWAYS VISIBLE IF CAMERA IS ACTIVE */}
-                    {isCameraActive && (
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); setShowCameraControls(!showCameraControls); }} 
-                            className={`p-2 rounded transition-colors ${showCameraControls ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`}
-                            title="Camera Settings (Zoom, Flash, Exposure)"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </button>
-                    )}
+                    {/* Camera Advanced Settings Toggle - ALWAYS VISIBLE TO MATCH BOTTOM BAR */}
+                    <button 
+                        onClick={handleSettingsClick}
+                        className={`p-2 rounded transition-colors ${showCameraControls && isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`}
+                        title="Camera Settings (Zoom, Flash, Exposure)"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </button>
 
                     <div className="w-px h-6 bg-zinc-800 mx-1" />
 
@@ -594,9 +600,19 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                     <div className="w-3 h-3 bg-current rounded-[1px]"/>
                                 </div>
                              </button>
+                             
+                             <div className="w-px h-8 bg-zinc-800 mx-2"/>
+
+                             {/* SETTINGS BUTTON IN BOTTOM BAR */}
+                             <button 
+                                onClick={handleSettingsClick}
+                                className={`p-3 rounded-full transition-all active:scale-95 ${showCameraControls && isCameraActive ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-white'}`}
+                                title="Camera Settings (will turn camera on)"
+                             >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                             </button>
 
                              {/* RECORD BUTTON */}
-                             <div className="w-px h-8 bg-zinc-800 mx-2"/>
                              <button 
                                 onClick={handleRecordClick} 
                                 className={`p-3 rounded-full transition-all active:scale-95 ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : '')}`}

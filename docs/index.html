@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.6 - Documentation & Demo</title>
+    <title>Teleprompter PRO v1.2.7 - Documentation & Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Updated to React 18.2.0 specifically for stability -->
@@ -25,7 +25,7 @@
 
     <script type="text/babel">
         // --- Constants ---
-        const APP_VERSION = "v1.2.6";
+        const APP_VERSION = "v1.2.7";
         const AppMode = {
             EDITOR: 'EDITOR',
             PROMPTER: 'PROMPTER'
@@ -201,6 +201,16 @@
                 }
             };
 
+            const handleSettingsClick = async (e) => {
+                e.stopPropagation();
+                if (!isCameraActive) {
+                    await toggleCamera();
+                    setShowCameraControls(true);
+                } else {
+                    setShowCameraControls(prev => !prev);
+                }
+            };
+
             const startRecording = () => {
                 if (!isCameraActive || !videoRef.current?.srcObject) return alert("Enable camera first");
                 chunksRef.current = [];
@@ -359,9 +369,7 @@
                         </div>
                          <div className="flex items-center gap-2">
                              <button onClick={(e) => { e.stopPropagation(); toggleCamera(); }} className={`p-2 rounded ${isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title={isCameraActive ? "Turn Off Camera" : "Turn On Camera"}>📷</button>
-                             {isCameraActive && (
-                                <button onClick={(e)=>{e.stopPropagation(); setShowCameraControls(!showCameraControls)}} className={`p-2 rounded ${showCameraControls ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title="Settings">⚙️</button>
-                             )}
+                             <button onClick={handleSettingsClick} className={`p-2 rounded ${showCameraControls && isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title="Settings">⚙️</button>
                              <div className="w-px h-6 bg-zinc-800 mx-1"></div>
                              <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, showTimer: !c.showTimer}))}} className={`p-2 rounded ${config.showTimer ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title="Toggle Timer">⏱</button>
                              <div className="w-px h-6 bg-zinc-800 mx-1"></div>
@@ -378,11 +386,14 @@
                                 <span className="font-bold text-white">Camera Settings</span>
                                 <button onClick={() => setShowCameraControls(false)} className="text-zinc-500 hover:text-white">✕</button>
                             </div>
+                            
                             {!hasControls && (
                                 <div className="text-zinc-500 py-2 text-center italic">
                                     Advanced settings (Zoom, Flash) not supported by this browser/camera.
                                 </div>
                             )}
+
+                            {/* Flash / Torch */}
                             {cameraCapabilities && cameraCapabilities.torch && (
                                 <div className="flex items-center justify-between">
                                     <span className="text-zinc-400">Flash</span>
@@ -391,12 +402,14 @@
                                     </button>
                                 </div>
                             )}
+                            {/* Zoom */}
                             {cameraCapabilities && cameraCapabilities.zoom && (
                                  <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400"><span>Zoom</span><span>{cameraSettings?.zoom?.toFixed(1)}x</span></div>
                                     <input type="range" min={cameraCapabilities.zoom.min} max={cameraCapabilities.zoom.max} step={0.1} value={cameraSettings?.zoom || 1} onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/>
                                 </div>
                             )}
+                             {/* Exposure */}
                              {cameraCapabilities && cameraCapabilities.exposureCompensation && (
                                  <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400"><span>Exposure</span><span>{cameraSettings?.exposureCompensation?.toFixed(1)}</span></div>
@@ -455,6 +468,11 @@
                                     </button>
                                     <button onClick={handleStop} className="p-3 bg-zinc-900 rounded-full group" title="Stop & Reset"><div className="w-3 h-3 bg-white rounded-[1px]"/></button>
                                     <div className="w-px h-8 bg-zinc-800 mx-2"/>
+                                    
+                                    <button onClick={handleSettingsClick} className={`p-3 rounded-full transition-all active:scale-95 ${showCameraControls && isCameraActive ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-white'}`} title="Camera Settings">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    </button>
+
                                     <button onClick={handleRecordClick} className={`p-3 rounded-full transition-all active:scale-95 ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : '')}`} title={isCameraActive ? "Record" : "Turn on Camera & Record"}>
                                         <div className={`w-4 h-4 bg-current rounded-${isRecording ? 'sm' : 'full'} transition-all duration-300`}/>
                                     </button>
@@ -463,207 +481,6 @@
                             <div className="w-10"/>
                          </div>
                     </div>
-                </div>
-            );
-        };
-
-        const ScriptEditor = ({ segments, onSegmentsChange, onStartPrompt }) => {
-            const [activeTab, setActiveTab] = React.useState('write');
-            const [rawText, setRawText] = React.useState(segments.map(s => s.text).join('\n'));
-            const [isProcessing, setIsProcessing] = React.useState(false);
-            const [topicInput, setTopicInput] = React.useState('');
-            const textareaRef = React.useRef(null);
-
-            const syncTextToSegments = () => {
-                const lines = rawText.split('\n').filter(l => l.trim());
-                const newSegs = lines.map((l, i) => {
-                    const existing = segments[i];
-                    return {
-                        id: existing?.text === l ? existing.id : `seg-${Date.now()}-${i}`,
-                        text: l,
-                        words: l.split(' ').map(w => ({ text: w })),
-                        duration: existing?.text === l ? existing.duration : Math.max(1000, l.split(' ').length * 500)
-                    };
-                });
-                onSegmentsChange(newSegs);
-                return newSegs;
-            };
-
-            const handleSwitchToTune = () => {
-                syncTextToSegments();
-                setActiveTab('tune');
-            };
-
-            const handleSwitchToWrite = () => {
-                setRawText(segments.map(s => s.text).join('\n'));
-                setActiveTab('write');
-            };
-
-            const handleStartWithSync = () => {
-                if (activeTab === 'write') syncTextToSegments();
-                onStartPrompt();
-            };
-            
-            const handleAIOptimize = async () => {
-                if (!rawText.trim()) return;
-                setIsProcessing(true);
-                try {
-                    const optimized = await optimizeScript(rawText);
-                    onSegmentsChange(optimized);
-                    setRawText(optimized.map(s => s.text).join('\n'));
-                    setActiveTab('tune');
-                } catch (e) { alert('Failed to optimize script.'); } 
-                finally { setIsProcessing(false); }
-            };
-
-            const handleAIGenerate = async () => {
-                if (!topicInput.trim()) return;
-                setIsProcessing(true);
-                try {
-                    const generated = await generateScriptFromTopic(topicInput);
-                    onSegmentsChange(generated);
-                    setRawText(generated.map(s => s.text).join('\n'));
-                    setTopicInput('');
-                    setActiveTab('tune');
-                } catch (e) { alert('Failed to generate script.'); }
-                finally { setIsProcessing(false); }
-            };
-
-            const applyColorToSelection = (colorClass) => {
-                const selection = window.getSelection();
-                if (!selection || selection.rangeCount === 0) return;
-                const range = selection.getRangeAt(0);
-                
-                const newSegments = segments.map(seg => {
-                    const newWords = seg.words.map((word, wIdx) => {
-                        const el = document.querySelector(`[data-seg-id="${seg.id}"][data-word-idx="${wIdx}"]`);
-                        if (el && range.intersectsNode(el)) return { ...word, color: colorClass };
-                        return word;
-                    });
-                    return { ...seg, words: newWords };
-                });
-                onSegmentsChange(newSegments);
-            };
-
-            const updateSegment = (id, updates) => {
-                onSegmentsChange(segments.map(s => {
-                    if (s.id !== id) return s;
-                    const updated = { ...s, ...updates };
-                    if (updates.text !== undefined && updates.text !== s.text) {
-                        updated.words = updates.text.split(' ').map(w => ({ text: w }));
-                    }
-                    return updated;
-                }));
-            };
-
-            return (
-                <div className="flex flex-col h-full bg-zinc-900 rounded-xl border border-zinc-800 shadow-xl overflow-hidden">
-                    <div className="flex flex-col sm:flex-row justify-between p-4 border-b border-zinc-800 bg-zinc-950 gap-4">
-                        <div className="space-x-2 flex">
-                             <button onClick={handleSwitchToWrite} className={`flex-1 sm:flex-none px-4 py-2 rounded ${activeTab === 'write' ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`} title="Edit raw text">Write</button>
-                             <button onClick={handleSwitchToTune} className={`flex-1 sm:flex-none px-4 py-2 rounded ${activeTab === 'tune' ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`} title="Adjust colors and timing">Tune</button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="secondary" onClick={() => { if(confirm('Clear all text?')) onSegmentsChange([]) }} size="sm" title="Clear All">Clear</Button>
-                            <Button onClick={handleStartWithSync} title="Launch Teleprompter">Start</Button>
-                        </div>
-                    </div>
-                    <div className="flex-1 overflow-hidden relative">
-                        {activeTab === 'write' ? (
-                             <div className="h-full p-4 flex flex-col gap-3">
-                                <div className="flex flex-col gap-2 shrink-0">
-                                    <div className="p-2 bg-zinc-950 rounded-lg border border-zinc-800 flex flex-col lg:flex-row gap-2">
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <Button variant="secondary" size="sm" onClick={handleAIOptimize} isLoading={isProcessing} className="whitespace-nowrap h-9" title="AI Timing">AI Timing</Button>
-                                            <div className="flex items-center gap-1 flex-1">
-                                                <input type="text" placeholder="Topic..." className="flex-1 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-1.5 h-9 text-xs text-white focus:outline-none" value={topicInput} onChange={e=>setTopicInput(e.target.value)}/>
-                                                <Button size="sm" className="h-9" onClick={handleAIGenerate} isLoading={isProcessing} disabled={!topicInput.trim()}>Gen</Button>
-                                            </div>
-                                        </div>
-                                         <div className="flex items-center gap-2 lg:border-l lg:border-zinc-800 lg:pl-2">
-                                            <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={()=>{if(textareaRef.current){textareaRef.current.focus();textareaRef.current.select()}}}>Select All</Button>
-                                            <Button variant="primary" size="sm" className="h-9 text-xs px-4" onClick={syncTextToSegments}>Save</Button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <textarea ref={textareaRef} className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded border border-zinc-800 resize-none focus:outline-none font-mono" 
-                                value={rawText} onChange={e => setRawText(e.target.value)} placeholder="Enter script here..." dir="auto" title="Script Editor"/>
-                             </div>
-                        ) : (
-                            <div className="flex flex-col h-full overflow-hidden">
-                                <div className="shrink-0 p-2 bg-zinc-950 border-b border-zinc-800 flex items-center justify-center gap-2">
-                                    <span className="text-[10px] text-zinc-500 uppercase font-bold mr-2">Color:</span>
-                                    {COLOR_PALETTE.map((c, i) => (
-                                        <button key={i} onMouseDown={(e) => { e.preventDefault(); applyColorToSelection(c.class); }} className={`w-6 h-6 rounded-full border border-zinc-700 ${c.bg} ${c.class===''?'bg-zinc-800':''}`} title={c.label}/>
-                                    ))}
-                                    <span className="text-[10px] text-zinc-600 ml-2">Select text to color</span>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar select-text" title="Tune Mode">
-                                    {segments.map((s, i) => (
-                                        <div key={s.id} className="bg-zinc-950 p-4 rounded border border-zinc-800">
-                                            <div className="flex flex-wrap gap-1 leading-relaxed" dir="auto">
-                                                {s.words.map((w, wi) => (
-                                                    <span key={wi} data-seg-id={s.id} data-word-idx={wi} className={`rounded px-1 text-lg font-medium cursor-text ${w.color || 'text-zinc-200'}`}>{w.text}</span>
-                                                ))}
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-zinc-900">
-                                                <input type="range" min="100" max="15000" step="100" value={s.duration} onChange={e => updateSegment(s.id, {duration: parseInt(e.target.value)})} className="flex-1 accent-indigo-500" title="Adjust Duration"/>
-                                                <span className="text-xs text-zinc-500 w-12 text-right">{(s.duration/1000).toFixed(1)}s</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        const App = () => {
-            const [segments, setSegments] = React.useState(DEFAULT_SCRIPT);
-            const [mode, setMode] = React.useState(AppMode.EDITOR);
-
-            const handleDoubleClick = (e) => {
-                const target = e.target;
-                const isInteractive = ['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT', 'A'].includes(target.tagName) || target.closest('button') || target.isContentEditable;
-                if (isInteractive) return;
-
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(e=>console.log(e));
-                } else {
-                    if (document.exitFullscreen) document.exitFullscreen();
-                }
-            };
-
-            return (
-                <div className="h-screen w-full bg-zinc-950 text-zinc-100 flex flex-col font-sans overflow-hidden" onDoubleClick={handleDoubleClick} title="Double-click empty area for Fullscreen">
-                    {mode === AppMode.EDITOR ? (
-                         <React.Fragment>
-                            <header className="px-4 py-3 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center shrink-0">
-                                <div className="flex items-center space-x-2">
-                                    <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/20">
-                                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                                    </div>
-                                    <div>
-                                        <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white leading-none">Teleprompter PRO</h1>
-                                        <p className="text-[9px] text-zinc-600 font-mono leading-none">{APP_VERSION}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                     <span className="hidden sm:inline text-xs text-zinc-500">Professional Prompter</span>
-                                     <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] text-zinc-500 hover:text-white underline" title="View Gemini API Billing Information">Billing Info</a>
-                                </div>
-                            </header>
-                            <div className="flex-1 p-2 sm:p-4 min-h-0 overflow-hidden">
-                                <div className="max-w-4xl mx-auto h-full flex flex-col">
-                                    <ScriptEditor segments={segments} onSegmentsChange={setSegments} onStartPrompt={() => setMode(AppMode.PROMPTER)}/>
-                                </div>
-                            </div>
-                        </React.Fragment>
-                    ) : (
-                        <TeleprompterView segments={segments} onClose={() => setMode(AppMode.EDITOR)}/>
-                    )}
                 </div>
             );
         };

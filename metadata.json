@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.6 - Added distinct Camera Preview mode and improved recording workflow.",
+  "description": "Teleprompter PRO v1.2.7 - Added persistent settings button to bottom toolbar.",
   "requestFramePermissions": [
     "camera",
     "microphone"
