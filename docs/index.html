@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.5 - Documentation & Demo</title>
+    <title>Teleprompter PRO v1.2.6 - Documentation & Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Updated to React 18.2.0 specifically for stability -->
@@ -25,7 +25,7 @@
 
     <script type="text/babel">
         // --- Constants ---
-        const APP_VERSION = "v1.2.5";
+        const APP_VERSION = "v1.2.6";
         const AppMode = {
             EDITOR: 'EDITOR',
             PROMPTER: 'PROMPTER'
@@ -163,6 +163,7 @@
                         if (videoRef.current) {
                             videoRef.current.srcObject = stream;
                             setIsCameraActive(true);
+                            setShowCameraControls(true); // Auto-show controls on start
                             
                             const track = stream.getVideoTracks()[0];
                             if (track.getCapabilities) {
@@ -342,8 +343,20 @@
                     
                     <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity">
                          <div className="flex items-center gap-4">
-                            {isRecording && <div className="flex items-center gap-2 px-2 py-1 bg-red-600/20 border border-red-500/50 rounded animate-pulse" title="Recording in progress"><div className="w-2 h-2 bg-red-500 rounded-full"/> <span className="text-[10px] font-bold text-red-100">REC</span></div>}
-                         </div>
+                             {isCameraActive && !isRecording && (
+                                <div className="flex items-center gap-2 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded" title="Camera is ready (Preview Mode)">
+                                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"/>
+                                    <span className="text-[10px] font-bold text-yellow-100 tracking-wider">PREVIEW</span>
+                                </div>
+                             )}
+                             {isRecording && (
+                                <div className="flex items-center gap-2 px-2 py-1 bg-red-600/20 border border-red-500/50 rounded animate-pulse" title="Recording in progress">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full"/>
+                                    <span className="text-[10px] font-bold text-red-100 tracking-wider">REC</span>
+                                </div>
+                             )}
+                             {!isCameraActive && !isRecording && <div className="text-zinc-500 text-[10px] font-mono">Dbl-click: Fullscreen</div>}
+                        </div>
                          <div className="flex items-center gap-2">
                              <button onClick={(e) => { e.stopPropagation(); toggleCamera(); }} className={`p-2 rounded ${isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title={isCameraActive ? "Turn Off Camera" : "Turn On Camera"}>📷</button>
                              {isCameraActive && (
@@ -365,14 +378,11 @@
                                 <span className="font-bold text-white">Camera Settings</span>
                                 <button onClick={() => setShowCameraControls(false)} className="text-zinc-500 hover:text-white">✕</button>
                             </div>
-                            
                             {!hasControls && (
                                 <div className="text-zinc-500 py-2 text-center italic">
                                     Advanced settings (Zoom, Flash) not supported by this browser/camera.
                                 </div>
                             )}
-
-                            {/* Flash / Torch */}
                             {cameraCapabilities && cameraCapabilities.torch && (
                                 <div className="flex items-center justify-between">
                                     <span className="text-zinc-400">Flash</span>
@@ -381,14 +391,12 @@
                                     </button>
                                 </div>
                             )}
-                            {/* Zoom */}
                             {cameraCapabilities && cameraCapabilities.zoom && (
                                  <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400"><span>Zoom</span><span>{cameraSettings?.zoom?.toFixed(1)}x</span></div>
                                     <input type="range" min={cameraCapabilities.zoom.min} max={cameraCapabilities.zoom.max} step={0.1} value={cameraSettings?.zoom || 1} onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/>
                                 </div>
                             )}
-                             {/* Exposure */}
                              {cameraCapabilities && cameraCapabilities.exposureCompensation && (
                                  <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400"><span>Exposure</span><span>{cameraSettings?.exposureCompensation?.toFixed(1)}</span></div>

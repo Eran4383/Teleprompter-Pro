@@ -87,6 +87,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     setIsCameraActive(true);
+                    // Automatically show controls when camera starts for the first time
+                    setShowCameraControls(true);
                     
                     const track = stream.getVideoTracks()[0];
                     if (track.getCapabilities) {
@@ -124,8 +126,10 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             stopRecording();
         } else {
             if (!isCameraActive) {
+                // Just turn on the camera (Preview Mode)
                 await toggleCamera();
             } else {
+                // If camera is already active, start recording
                 startRecording();
             }
         }
@@ -369,14 +373,20 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             {/* Top Overlay for settings */}
             <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity">
                 <div className="flex items-center gap-4">
-                     {/* REC Indicator */}
+                     {/* PREVIEW / REC Indicator */}
+                     {isCameraActive && !isRecording && (
+                        <div className="flex items-center gap-2 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded" title="Camera is ready (Preview Mode)">
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"/>
+                            <span className="text-[10px] font-bold text-yellow-100 tracking-wider">PREVIEW</span>
+                        </div>
+                     )}
                      {isRecording && (
                         <div className="flex items-center gap-2 px-2 py-1 bg-red-600/20 border border-red-500/50 rounded animate-pulse" title="Recording in progress">
                             <div className="w-2 h-2 bg-red-500 rounded-full"/>
-                            <span className="text-[10px] font-bold text-red-100">REC</span>
+                            <span className="text-[10px] font-bold text-red-100 tracking-wider">REC</span>
                         </div>
                      )}
-                     {!isRecording && <div className="text-zinc-500 text-[10px] font-mono">Dbl-click: Fullscreen</div>}
+                     {!isCameraActive && !isRecording && <div className="text-zinc-500 text-[10px] font-mono">Dbl-click: Fullscreen</div>}
                 </div>
                 
                 <div className="flex items-center gap-2">
