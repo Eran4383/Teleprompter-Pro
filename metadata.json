@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.15 - Optimized MP4 recording for Chrome and fixed History synchronization.",
+  "description": "Teleprompter PRO v1.2.16 - Advanced Video Controls, Auto-Save, and Custom Modals.",
   "requestFramePermissions": [
     "camera",
     "microphone"

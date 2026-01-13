@@ -30,7 +30,12 @@ export interface PromptConfig {
     fontSize: number; // in pixels
     isMirrored: boolean;
     overlayColor: string;
-    guideOpacity: number; // 0.1 to 1.0 - Opacity of non-active text
+    guideOpacity: number; // 0.1 to 1.0
     showTimer: boolean;
     videoFilter: VideoFilterType;
+    // Advanced Video Props
+    videoScale: number; // 0.5 to 2.0
+    brightness: number; // 0.5 to 2.0 (1 is default)
+    contrast: number;   // 0.5 to 2.0 (1 is default)
+    saturation: number; // 0 to 2.0 (1 is default)
 }
