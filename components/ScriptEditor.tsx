@@ -151,8 +151,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
 
         setSavedScripts(updatedHistory);
         localStorage.setItem('teleprompter_history', JSON.stringify(updatedHistory));
-        // We don't toast on auto-save to avoid annoyance, unless it's explicitly requested? 
-        // Let's just do it silently for smooth UX.
     };
 
     const syncTextToSegments = () => {
@@ -268,16 +266,8 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             isInput: true,
             confirmText: "Save Name",
             type: "input",
-            onConfirm: () => {
-                // Logic is handled inside the modal callback but we need access to the latest tempInput
-                // Since closure captures stale state, we use a ref or pass the value differently.
-                // React State pattern: Trigger update
-            } 
+            editingId: id
         });
-        
-        // Slightly hacky: redefine onConfirm to close over the *future* state? 
-        // Better: Use a dedicated useEffect or handle confirm logic separately.
-        // Simplified approach for this codebase:
     };
     
     // Improved Rename Logic
@@ -287,7 +277,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         localStorage.setItem('teleprompter_history', JSON.stringify(updated));
         showToast("Script renamed.");
     };
-
 
     // --- AI Logic ---
 
@@ -334,8 +323,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             return updated;
         });
         onSegmentsChange(newSegs);
-        // We defer auto-save on slider drag to avoid IO thrashing, 
-        // or we could debounce it. For now, rely on explicit sync or tab switch.
     };
 
     const applyColorToSelection = (colorClass: string) => {
@@ -593,12 +580,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <button 
-                                                onClick={(e) => {
-                                                    setTempInput(script.title);
-                                                    setModalConfig({
-                                                        isOpen: true, title: "Rename Script", isInput: true, confirmText: "Save", editingId: script.id
-                                                    });
-                                                }}
+                                                onClick={(e) => handleRenameScript(script.id, script.title, e)}
                                                 className="p-2 text-zinc-600 hover:text-zinc-300 rounded-lg transition-colors"
                                                 title="Rename"
                                             >

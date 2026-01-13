@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppMode, ScriptSegment } from './types';
 import { DEFAULT_SCRIPT, APP_VERSION } from './constants';
 import { ScriptEditor } from './components/ScriptEditor';
@@ -7,6 +7,10 @@ import { TeleprompterView } from './components/TeleprompterView';
 const App: React.FC = () => {
   const [segments, setSegments] = useState<ScriptSegment[]>(DEFAULT_SCRIPT);
   const [mode, setMode] = useState<AppMode>(AppMode.EDITOR);
+
+  useEffect(() => {
+    console.log(`Teleprompter PRO ${APP_VERSION} loaded.`);
+  }, []);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     // Check if the target is an interactive element where double-click might mean something else (like selecting text)
