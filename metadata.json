@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.19 - Advanced Video Controls, Auto-Save, and Custom Modals.",
+  "description": "Teleprompter PRO v1.2.20 - Stability updates and deployment fixes.",
   "requestFramePermissions": [
     "camera",
     "microphone"
