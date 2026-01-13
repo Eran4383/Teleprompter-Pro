@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { PromptConfig, ScriptSegment } from '../types';
+import { PromptConfig, ScriptSegment, VideoFilterType } from '../types';
 
 interface TeleprompterViewProps {
     segments: ScriptSegment[];
@@ -13,6 +13,13 @@ const formatTime = (ms: number) => {
     return `${m}:${s}`;
 };
 
+const FILTER_STYLES: Record<VideoFilterType, React.CSSProperties> = {
+    none: {},
+    warm: { filter: 'sepia(0.4) saturate(1.2)' },
+    cool: { filter: 'hue-rotate(180deg) saturate(0.8) contrast(1.1)' }, // Simplified cool look (shifts skin tones a bit blue)
+    bw: { filter: 'grayscale(1)' }
+};
+
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -24,14 +31,15 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     // Initialize as empty object to indicate "checked but maybe empty" vs null "not checked"
     const [cameraCapabilities, setCameraCapabilities] = useState<MediaTrackCapabilities | null>(null);
     const [cameraSettings, setCameraSettings] = useState<MediaTrackSettings | null>(null);
-    const [showCameraControls, setShowCameraControls] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     
     const [config, setConfig] = useState<PromptConfig>({
         fontSize: 54,
         isMirrored: false,
         overlayColor: '#000000',
         guideOpacity: 0.2,
-        showTimer: true
+        showTimer: true,
+        videoFilter: 'none'
     });
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +76,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             if (videoRef.current) videoRef.current.srcObject = null;
             setIsCameraActive(false);
             setCameraCapabilities(null);
-            setShowCameraControls(false);
+            // We don't necessarily close settings when camera stops, as user might want to adjust text settings
             if (isRecording) stopRecording();
         } else {
             // Start logic
@@ -135,12 +143,12 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleSettingsClick = async (e: React.MouseEvent) => {
         e.stopPropagation();
+        // If camera is off, we still show settings (for text), but we might want to encourage camera use?
+        // User request: "settings button... allows me to open camera even without recording"
         if (!isCameraActive) {
-            await toggleCamera();
-            setShowCameraControls(true);
-        } else {
-            setShowCameraControls(prev => !prev);
+             await toggleCamera();
         }
+        setShowSettings(prev => !prev);
     };
 
     const startRecording = () => {
@@ -360,7 +368,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     }, [isPlaying, onClose]);
 
     // Check if we actually have any controls to show
-    const hasControls = cameraCapabilities && ((cameraCapabilities as any).torch || (cameraCapabilities as any).zoom || (cameraCapabilities as any).exposureCompensation);
+    const hasCameraControls = cameraCapabilities && ((cameraCapabilities as any).torch || (cameraCapabilities as any).zoom || (cameraCapabilities as any).exposureCompensation);
 
     return (
         <div 
@@ -375,12 +383,15 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 playsInline 
                 muted 
                 className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
-                style={{ transform: 'scaleX(-1)' }} // Mirror camera by default for user preference
+                style={{ 
+                    transform: 'scaleX(-1)', // Mirror camera by default for user preference
+                    ...FILTER_STYLES[config.videoFilter] 
+                }} 
             />
 
             {/* Top Overlay for settings */}
-            <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity">
-                <div className="flex items-center gap-4">
+            <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="flex items-center gap-4 pointer-events-auto">
                      {/* PREVIEW / REC Indicator */}
                      {isCameraActive && !isRecording && (
                         <div className="flex items-center gap-2 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded" title="Camera is ready (Preview Mode)">
@@ -394,106 +405,118 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                             <span className="text-[10px] font-bold text-red-100 tracking-wider">REC</span>
                         </div>
                      )}
-                     {!isCameraActive && !isRecording && <div className="text-zinc-500 text-[10px] font-mono">Dbl-click: Fullscreen</div>}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    {/* Camera Toggle */}
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); toggleCamera(); }} 
-                        className={`p-2 rounded transition-colors ${isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`}
-                        title={isCameraActive ? "Turn Off Camera" : "Turn On Camera"}
-                    >
-                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    </button>
-                    
-                    {/* Camera Advanced Settings Toggle - ALWAYS VISIBLE TO MATCH BOTTOM BAR */}
-                    <button 
-                        onClick={handleSettingsClick}
-                        className={`p-2 rounded transition-colors ${showCameraControls && isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`}
-                        title="Camera Settings (Zoom, Flash, Exposure)"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    </button>
-
-                    <div className="w-px h-6 bg-zinc-800 mx-1" />
-
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, showTimer: !c.showTimer})); }} 
-                        className={`p-2 rounded transition-colors ${config.showTimer ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`}
-                        title={config.showTimer ? "Hide Timer Overlay" : "Show Timer Overlay"}
-                    >
-                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </button>
-                    <div className="w-px h-6 bg-zinc-800 mx-1" />
-                    <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, fontSize: Math.max(10, c.fontSize - 4)})); }} className="p-2 bg-zinc-900 rounded text-zinc-300 hover:text-white" title="Decrease Font Size">A-</button>
-                    <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, fontSize: c.fontSize + 4})); }} className="p-2 bg-zinc-900 rounded text-zinc-300 hover:text-white" title="Increase Font Size">A+</button>
-                    <button onClick={(e) => { e.stopPropagation(); toggleMirror(); }} className={`p-2 rounded text-sm font-medium ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-300 hover:text-white'}`} title="Mirror Text (for teleprompter glass)">Mirror</button>
                 </div>
             </div>
             
-            {/* Camera Settings Panel */}
-            {isCameraActive && showCameraControls && (
-                <div className="absolute top-16 right-4 z-40 bg-zinc-900/90 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-xl w-64 flex flex-col gap-4 text-xs" onDoubleClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-1">
-                        <span className="font-bold text-white">Camera Settings</span>
-                        <button onClick={() => setShowCameraControls(false)} className="text-zinc-500 hover:text-white">✕</button>
+            {/* EXTENDED Settings Panel */}
+            {showSettings && (
+                <div className="absolute top-16 right-4 bottom-24 sm:bottom-auto z-40 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]" onDoubleClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                        <span className="font-bold text-white text-sm">Settings</span>
+                        <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white p-1">✕</button>
                     </div>
 
-                    {!hasControls && (
-                         <div className="text-zinc-500 py-2 text-center italic">
-                             Advanced settings (Zoom, Flash) not supported by this browser/camera.
-                         </div>
-                    )}
+                    {/* Section: Text Display */}
+                    <div className="space-y-3">
+                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Text Display</h3>
+                        
+                        <div className="flex flex-col gap-1">
+                             <div className="flex justify-between text-zinc-400"><span>Font Size</span><span>{config.fontSize}px</span></div>
+                             <input type="range" min="20" max="150" step="2" value={config.fontSize} onChange={(e) => setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                        </div>
 
-                    {/* Flash / Torch */}
-                    {cameraCapabilities && (cameraCapabilities as any).torch && (
+                        <div className="flex flex-col gap-1">
+                             <div className="flex justify-between text-zinc-400"><span>Ghost Opacity</span><span>{Math.round(config.guideOpacity * 100)}%</span></div>
+                             <input type="range" min="0" max="1" step="0.1" value={config.guideOpacity} onChange={(e) => setConfig({...config, guideOpacity: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                        </div>
+
                         <div className="flex items-center justify-between">
-                            <span className="text-zinc-400">Flash</span>
-                            <button 
-                                onClick={() => applyCameraConstraint('torch', !(cameraSettings as any)?.torch)}
-                                className={`px-3 py-1 rounded-full ${(cameraSettings as any)?.torch ? 'bg-yellow-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}
-                            >
-                                {(cameraSettings as any)?.torch ? 'ON' : 'OFF'}
+                            <span className="text-zinc-400">Mirror Text</span>
+                             <button onClick={() => setConfig(c => ({...c, isMirrored: !c.isMirrored}))} className={`px-3 py-1 rounded-full ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                                {config.isMirrored ? 'ON' : 'OFF'}
                             </button>
                         </div>
-                    )}
-
-                    {/* Zoom */}
-                    {cameraCapabilities && (cameraCapabilities as any).zoom && (
-                         <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-zinc-400">
-                                <span>Zoom</span>
-                                <span>{(cameraSettings as any)?.zoom?.toFixed(1)}x</span>
-                            </div>
-                            <input 
-                                type="range" 
-                                min={(cameraCapabilities as any).zoom.min} 
-                                max={(cameraCapabilities as any).zoom.max} 
-                                step={0.1}
-                                value={(cameraSettings as any)?.zoom || 1}
-                                onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))}
-                                className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"
-                            />
+                         <div className="flex items-center justify-between">
+                            <span className="text-zinc-400">Show Timer</span>
+                             <button onClick={() => setConfig(c => ({...c, showTimer: !c.showTimer}))} className={`px-3 py-1 rounded-full ${config.showTimer ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                                {config.showTimer ? 'ON' : 'OFF'}
+                            </button>
                         </div>
-                    )}
-                    
-                    {/* Exposure Compensation */}
-                     {cameraCapabilities && (cameraCapabilities as any).exposureCompensation && (
-                         <div className="flex flex-col gap-1">
-                            <div className="flex justify-between text-zinc-400">
-                                <span>Exposure</span>
-                                <span>{(cameraSettings as any)?.exposureCompensation?.toFixed(1)}</span>
-                            </div>
-                            <input 
-                                type="range" 
-                                min={(cameraCapabilities as any).exposureCompensation.min} 
-                                max={(cameraCapabilities as any).exposureCompensation.max} 
-                                step={(cameraCapabilities as any).exposureCompensation.step}
-                                value={(cameraSettings as any)?.exposureCompensation || 0}
-                                onChange={(e) => applyCameraConstraint('exposureCompensation', parseFloat(e.target.value))}
-                                className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"
-                            />
+                    </div>
+
+                    {/* Section: Video Look */}
+                    <div className="space-y-3 pt-2 border-t border-zinc-800">
+                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Video Look</h3>
+                         <div className="grid grid-cols-2 gap-2">
+                            {(['none', 'warm', 'cool', 'bw'] as VideoFilterType[]).map(filter => (
+                                <button 
+                                    key={filter}
+                                    onClick={() => setConfig(c => ({...c, videoFilter: filter}))}
+                                    className={`py-1.5 px-2 rounded border transition-all capitalize ${config.videoFilter === filter ? 'bg-indigo-600/20 border-indigo-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}
+                                >
+                                    {filter}
+                                </button>
+                            ))}
+                         </div>
+                    </div>
+
+                    {/* Section: Camera Hardware */}
+                    {isCameraActive && (
+                        <div className="space-y-3 pt-2 border-t border-zinc-800">
+                            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Camera Hardware</h3>
+                            
+                            {!hasCameraControls && <p className="text-zinc-600 italic">No advanced controls available.</p>}
+
+                            {/* Flash / Torch */}
+                            {cameraCapabilities && (cameraCapabilities as any).torch && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-zinc-400">Flash</span>
+                                    <button 
+                                        onClick={() => applyCameraConstraint('torch', !(cameraSettings as any)?.torch)}
+                                        className={`px-3 py-1 rounded-full ${(cameraSettings as any)?.torch ? 'bg-yellow-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}
+                                    >
+                                        {(cameraSettings as any)?.torch ? 'ON' : 'OFF'}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Zoom */}
+                            {cameraCapabilities && (cameraCapabilities as any).zoom && (
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-zinc-400">
+                                        <span>Zoom</span>
+                                        <span>{(cameraSettings as any)?.zoom?.toFixed(1)}x</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min={(cameraCapabilities as any).zoom.min} 
+                                        max={(cameraCapabilities as any).zoom.max} 
+                                        step={0.1}
+                                        value={(cameraSettings as any)?.zoom || 1}
+                                        onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))}
+                                        className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"
+                                    />
+                                </div>
+                            )}
+                            
+                            {/* Exposure Compensation */}
+                            {cameraCapabilities && (cameraCapabilities as any).exposureCompensation && (
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between text-zinc-400">
+                                        <span>Exposure</span>
+                                        <span>{(cameraSettings as any)?.exposureCompensation?.toFixed(1)}</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min={(cameraCapabilities as any).exposureCompensation.min} 
+                                        max={(cameraCapabilities as any).exposureCompensation.max} 
+                                        step={(cameraCapabilities as any).exposureCompensation.step}
+                                        value={(cameraSettings as any)?.exposureCompensation || 0}
+                                        onChange={(e) => applyCameraConstraint('exposureCompensation', parseFloat(e.target.value))}
+                                        className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -522,7 +545,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                     onMouseDown={handleUserInteraction}
                     onScroll={handleScroll}
                 >
-                    {/* CHANGED PADDING TO 50VH TO ALLOW CENTER ALIGNMENT OF TOP AND BOTTOM LINES */}
                     <div ref={contentRef} className="py-[50vh] px-6 max-w-4xl mx-auto">
                         {segments.map((seg, idx) => {
                             const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
@@ -530,10 +552,13 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                 <div 
                                     key={seg.id}
                                     ref={el => {segmentRefs.current[idx] = el}}
-                                    className={`mb-10 font-bold text-center leading-[1.1] transition-all duration-300 ${isActive ? 'opacity-100 scale-100' : 'opacity-20 scale-90 blur-[1px]'} drop-shadow-lg`}
+                                    className={`mb-10 font-bold text-center leading-[1.1] transition-all duration-300 drop-shadow-lg`}
                                     style={{ 
                                         fontSize: `${config.fontSize}px`,
-                                        textShadow: isCameraActive ? '0 2px 4px rgba(0,0,0,0.8)' : 'none'
+                                        textShadow: isCameraActive ? '0 2px 4px rgba(0,0,0,0.8)' : 'none',
+                                        opacity: isActive ? 1 : config.guideOpacity,
+                                        filter: isActive ? 'none' : 'blur(0.5px)',
+                                        transform: isActive ? 'scale(1)' : 'scale(0.98)'
                                     }}
                                     dir="auto"
                                 >
@@ -549,23 +574,44 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             </div>
 
-            {/* Always Visible Bottom Bar with Clear Exit */}
+            {/* Responsive Bottom Bar */}
             <div className="bg-zinc-950/90 backdrop-blur border-t border-zinc-900 px-4 py-4 pb-8 sm:pb-4 z-50 transition-colors" onDoubleClick={(e) => e.stopPropagation()}>
-                <div className="max-w-xl mx-auto flex items-center justify-between gap-6">
-                    {/* EXIT BUTTON */}
-                    <button 
-                        onClick={onClose}
-                        className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors group"
-                        title="Exit Teleprompter Mode"
-                    >
-                        <div className="p-2 bg-zinc-900 rounded-lg group-hover:bg-zinc-800 border border-zinc-800">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                        </div>
-                        <span className="text-[10px] uppercase font-bold tracking-tighter">Exit</span>
-                    </button>
+                <div className="max-w-2xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
+                    
+                    {/* Top Row on Mobile: Exit Button (left) and Speed Slider (right) to save vertical space */}
+                    <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                         {/* EXIT BUTTON */}
+                        <button 
+                            onClick={onClose}
+                            className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors group shrink-0"
+                            title="Exit"
+                        >
+                            <div className="p-2 bg-zinc-900 rounded-lg group-hover:bg-zinc-800 border border-zinc-800">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                            </div>
+                        </button>
 
-                    <div className="flex-1 flex flex-col gap-3">
-                        <div className="flex items-center gap-4">
+                        {/* Speed Control - Mobile Optimized */}
+                        <div className="flex items-center gap-3 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/50 flex-1 sm:hidden">
+                             <span className="text-[10px] font-bold text-zinc-500 uppercase">Speed</span>
+                             <input 
+                                type="range" 
+                                min="0.1" 
+                                max="2.5" 
+                                step="0.1" 
+                                value={speedMultiplier} 
+                                onChange={(e) => setSpeedMultiplier(parseFloat(e.target.value))}
+                                className="flex-1 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                             />
+                             <span className="text-[10px] font-mono text-zinc-400 w-8 text-right">{speedMultiplier.toFixed(1)}x</span>
+                        </div>
+                    </div>
+
+                    {/* Bottom Row on Mobile: Main Controls */}
+                    <div className="flex items-center justify-center gap-4 sm:gap-6 w-full sm:w-auto">
+                        
+                        {/* Speed Control - Desktop */}
+                        <div className="hidden sm:flex items-center gap-4 w-48">
                              <input 
                                 type="range" 
                                 min="0.1" 
@@ -576,38 +622,39 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                 className="flex-1 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                                 title="Adjust Playback Speed"
                              />
-                             <span className="text-[10px] font-mono text-zinc-500 w-10">{speedMultiplier.toFixed(1)}x</span>
+                             <span className="text-[10px] font-mono text-zinc-500 w-8">{speedMultiplier.toFixed(1)}x</span>
                         </div>
-                        <div className="flex items-center justify-center gap-6">
-                             <button onClick={() => setElapsedTime(Math.max(0, elapsedTime - 10000))} className="p-2 text-zinc-500 hover:text-white" title="Rewind 10 Seconds">
-                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+
+                        <div className="flex items-center justify-center gap-3 sm:gap-5 bg-zinc-900/50 sm:bg-transparent p-2 sm:p-0 rounded-2xl border border-zinc-800/50 sm:border-none">
+                             <button onClick={() => setElapsedTime(Math.max(0, elapsedTime - 5000))} className="p-2 text-zinc-500 hover:text-white" title="Rewind 5 Seconds">
+                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
                              </button>
                              
                              <button 
                                 onClick={handlePlayPause}
-                                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}
-                                title={isPlaying ? "Pause Scrolling (Space)" : "Start Scrolling (Space)"}
+                                className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}
+                                title={isPlaying ? "Pause" : "Start"}
                              >
                                 {isPlaying ? (
-                                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                                 ) : (
-                                    <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                 )}
                              </button>
                              
-                             <button onClick={handleStop} className="p-2 text-zinc-500 hover:text-white group" title="Stop & Reset to Top">
-                                <div className="w-6 h-6 border-2 border-current rounded flex items-center justify-center">
-                                    <div className="w-3 h-3 bg-current rounded-[1px]"/>
+                             <button onClick={handleStop} className="p-2 text-zinc-500 hover:text-white group" title="Stop & Reset">
+                                <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-current rounded flex items-center justify-center">
+                                    <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-current rounded-[1px]"/>
                                 </div>
                              </button>
                              
-                             <div className="w-px h-8 bg-zinc-800 mx-2"/>
+                             <div className="w-px h-6 sm:h-8 bg-zinc-800 mx-1"/>
 
-                             {/* SETTINGS BUTTON IN BOTTOM BAR */}
+                             {/* SETTINGS BUTTON */}
                              <button 
                                 onClick={handleSettingsClick}
-                                className={`p-3 rounded-full transition-all active:scale-95 ${showCameraControls && isCameraActive ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-white'}`}
-                                title="Camera Settings (will turn camera on)"
+                                className={`p-2 sm:p-3 rounded-full transition-all active:scale-95 ${showSettings ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-white'}`}
+                                title="Settings"
                              >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                              </button>
@@ -615,15 +662,13 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                              {/* RECORD BUTTON */}
                              <button 
                                 onClick={handleRecordClick} 
-                                className={`p-3 rounded-full transition-all active:scale-95 ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : '')}`}
-                                title={isCameraActive ? (isRecording ? "Stop Recording" : "Start Recording") : "Turn On Camera & Prepare to Record"}
+                                className={`p-2 sm:p-3 rounded-full transition-all active:scale-95 ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : '')}`}
+                                title={isCameraActive ? "Record" : "Turn on Camera & Record"}
                              >
                                 <div className={`w-4 h-4 bg-current rounded-${isRecording ? 'sm' : 'full'} transition-all duration-300`}/>
                              </button>
                         </div>
                     </div>
-
-                    <div className="w-10" /> {/* Spacer */}
                 </div>
             </div>
         </div>

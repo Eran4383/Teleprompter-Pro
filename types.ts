@@ -1,3 +1,4 @@
+
 export interface SegmentWord {
     text: string;
     color?: string; // tailwind class e.g. 'text-yellow-400'
@@ -15,10 +16,13 @@ export enum AppMode {
     PROMPTER = 'PROMPTER',
 }
 
+export type VideoFilterType = 'none' | 'warm' | 'cool' | 'bw';
+
 export interface PromptConfig {
     fontSize: number; // in pixels
     isMirrored: boolean;
     overlayColor: string;
-    guideOpacity: number;
+    guideOpacity: number; // 0.1 to 1.0 - Opacity of non-active text
     showTimer: boolean;
+    videoFilter: VideoFilterType;
 }

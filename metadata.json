@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.8 - Fix production build crash and update version styling.",
+  "description": "Teleprompter PRO v1.2.9 - Enhanced settings menu (opacity, video filters) and responsive mobile toolbar.",
   "requestFramePermissions": [
     "camera",
     "microphone"
