@@ -1,0 +1,8 @@
+{
+  "name": "Teleprompter PRO",
+  "description": "Teleprompter PRO v1.2.3 - Improved double-click handling for smoother text editing.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

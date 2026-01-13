@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teleprompter PRO v1.2.3 - Documentation & Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #f4f4f5; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- Types ---
+        const AppMode = {
+            EDITOR: 'EDITOR',
+            PROMPTER: 'PROMPTER'
+        };
+        const COLOR_PALETTE = [
+            { class: '', label: 'White', bg: 'bg-zinc-200' },
+            { class: 'text-yellow-400', label: 'Yellow', bg: 'bg-yellow-400' },
+            { class: 'text-red-500', label: 'Red', bg: 'bg-red-500' },
+            { class: 'text-green-400', label: 'Green', bg: 'bg-green-400' },
+            { class: 'text-cyan-400', label: 'Cyan', bg: 'bg-cyan-400' },
+            { class: 'text-purple-400', label: 'Purple', bg: 'bg-purple-400' },
+        ];
+
+        // --- Services (Mock for Demo) ---
+        const optimizeScript = async (text) => {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const lines = text.split('\n').filter(l => l.trim());
+                    resolve(lines.map((l, i) => {
+                        const wordCount = l.split(' ').length;
+                        const duration = Math.max(2000, wordCount * 350 + (l.includes('.') ? 1000 : 0));
+                        return {
+                            id: `demo-${i}`,
+                            text: l,
+                            words: l.split(' ').map(w => ({ text: w })),
+                            duration: duration
+                        };
+                    }));
+                }, 1000);
+            });
+        };
+
+        // --- Components ---
+
+        const Button = ({ children, variant = 'primary', size = 'md', isLoading, icon, className = '', disabled, ...props }) => {
+            const baseStyles = "inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 rounded-lg";
+            const variants = {
+                primary: "bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500",
+                secondary: "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 focus:ring-zinc-600 border border-zinc-700",
+                ghost: "bg-transparent hover:bg-zinc-800 text-zinc-400 hover:text-white"
+            };
+            const sizes = {
+                sm: "px-3 py-1.5 text-sm",
+                md: "px-4 py-2 text-sm",
+                lg: "px-6 py-3 text-base"
+            };
+            return (
+                <button className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${className}`} disabled={disabled || isLoading} {...props}>
+                    {isLoading ? "..." : <>{icon && <span className="mr-2">{icon}</span>}{children}</>}
+                </button>
+            );
+        };
+
+        const TeleprompterView = ({ segments, onClose }) => {
+            const [isPlaying, setIsPlaying] = React.useState(false);
+            const [elapsedTime, setElapsedTime] = React.useState(0);
+            const [speedMultiplier, setSpeedMultiplier] = React.useState(1);
+            const [isCameraActive, setIsCameraActive] = React.useState(false);
+            const [isRecording, setIsRecording] = React.useState(false);
+            const [config, setConfig] = React.useState({ fontSize: 60, isMirrored: false, showTimer: true });
+            
+            const containerRef = React.useRef(null);
+            const requestRef = React.useRef();
+            const lastTimeRef = React.useRef();
+            const segmentRefs = React.useRef([]);
+            const isManualScroll = React.useRef(false);
+            const videoRef = React.useRef(null);
+            const mediaRecorderRef = React.useRef(null);
+            const chunksRef = React.useRef([]);
+
+            const totalDuration = React.useMemo(() => segments.reduce((acc, s) => acc + s.duration, 0), [segments]);
+            const segmentTimeMap = React.useMemo(() => {
+                let acc = 0;
+                return segments.map(s => {
+                    const start = acc;
+                    acc += s.duration;
+                    return { start, end: acc, id: s.id, duration: s.duration };
+                });
+            }, [segments]);
+
+            const formatTime = (ms) => {
+                const totalSeconds = Math.floor(ms / 1000);
+                const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const s = (totalSeconds % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            };
+
+            const toggleCamera = async () => {
+                if (isCameraActive) {
+                    const stream = videoRef.current?.srcObject;
+                    if (stream) stream.getTracks().forEach(t => t.stop());
+                    if (videoRef.current) videoRef.current.srcObject = null;
+                    setIsCameraActive(false);
+                    if (isRecording) stopRecording();
+                } else {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+                        if (videoRef.current) {
+                            videoRef.current.srcObject = stream;
+                            setIsCameraActive(true);
+                        }
+                    } catch (e) { alert("Camera access failed: " + e.message); }
+                }
+            };
+
+            const handleRecordClick = async () => {
+                if (isRecording) {
+                    stopRecording();
+                } else {
+                    if (!isCameraActive) {
+                        await toggleCamera();
+                    } else {
+                        startRecording();
+                    }
+                }
+            };
+
+            const startRecording = () => {
+                if (!isCameraActive || !videoRef.current?.srcObject) return alert("Enable camera first");
+                chunksRef.current = [];
+                const stream = videoRef.current.srcObject;
+                try {
+                    const recorder = new MediaRecorder(stream);
+                    recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+                    recorder.onstop = () => {
+                        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `recording-${Date.now()}.webm`;
+                        a.click();
+                        setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                    };
+                    recorder.start();
+                    setIsRecording(true);
+                    mediaRecorderRef.current = recorder;
+                } catch(e) { alert("Recording failed"); }
+            };
+
+            const stopRecording = () => {
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                    mediaRecorderRef.current.stop();
+                    setIsRecording(false);
+                }
+            };
+
+            React.useEffect(() => {
+                return () => {
+                    if (isCameraActive) {
+                        const stream = videoRef.current?.srcObject;
+                        stream?.getTracks().forEach(t => t.stop());
+                    }
+                }
+            }, [isCameraActive]);
+
+            const syncTimeFromScroll = () => {
+                if (!containerRef.current) return;
+                const center = containerRef.current.scrollTop + (containerRef.current.clientHeight / 2);
+                let activeIdx = -1;
+                for (let i = 0; i < segmentRefs.current.length; i++) {
+                    const el = segmentRefs.current[i];
+                    if (el && el.offsetTop <= center && el.offsetTop + el.clientHeight >= center) { activeIdx = i; break; }
+                }
+                if (activeIdx === -1) activeIdx = segments.length - 1;
+                const el = segmentRefs.current[activeIdx];
+                const segMap = segmentTimeMap[activeIdx];
+                if (el && segMap) {
+                    const dist = center - el.offsetTop;
+                    const ratio = Math.max(0, Math.min(1, dist / el.clientHeight));
+                    setElapsedTime(segMap.start + (segMap.duration * ratio));
+                }
+            };
+
+            const animate = (time) => {
+                if (lastTimeRef.current !== undefined && isPlaying) {
+                    const deltaTime = time - lastTimeRef.current;
+                    setElapsedTime(prev => {
+                        const next = prev + (deltaTime * speedMultiplier);
+                        return next >= totalDuration ? totalDuration : next;
+                    });
+                }
+                lastTimeRef.current = time;
+                requestRef.current = requestAnimationFrame(animate);
+            };
+
+            React.useEffect(() => {
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [isPlaying, speedMultiplier, totalDuration]);
+
+            React.useEffect(() => {
+                if (!isPlaying || isManualScroll.current || !containerRef.current) return;
+                const activeIdx = segmentTimeMap.findIndex(m => elapsedTime >= m.start && elapsedTime < m.end);
+                if (activeIdx !== -1 && segmentRefs.current[activeIdx]) {
+                    const el = segmentRefs.current[activeIdx];
+                    const containerHeight = containerRef.current.clientHeight;
+                    const elHeight = el.clientHeight;
+                    const map = segmentTimeMap[activeIdx];
+                    const progress = (elapsedTime - map.start) / map.duration;
+                    const scrollOffset = (el.offsetTop - containerHeight/2 + elHeight/2) + (elHeight * progress) - (elHeight/2);
+                    containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
+                }
+            }, [elapsedTime, segmentTimeMap, isPlaying]);
+
+            const handlePlayPause = () => {
+                if (!isPlaying && isManualScroll.current) {
+                    syncTimeFromScroll();
+                    isManualScroll.current = false;
+                }
+                setIsPlaying(!isPlaying);
+                lastTimeRef.current = undefined;
+            };
+
+            const handleStop = () => {
+                setIsPlaying(false);
+                setElapsedTime(0);
+                isManualScroll.current = false;
+                lastTimeRef.current = undefined;
+                if (containerRef.current) containerRef.current.scrollTo({top: 0, behavior: 'smooth'});
+            };
+
+            const handleScroll = () => {
+                if(!isPlaying) syncTimeFromScroll();
+            };
+
+            const handleDoubleClick = (e) => {
+                // Prevent fullscreen if clicking interactive elements
+                const target = e.target;
+                const isInteractive = ['BUTTON', 'INPUT'].includes(target.tagName) || target.closest('button');
+
+                if (isInteractive) return;
+
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(e=>console.log(e));
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                }
+            };
+
+            return (
+                <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-500 ${isCameraActive ? 'bg-black/30' : 'bg-black'} text-white`} onDoubleClick={handleDoubleClick} title="Double-click empty area for Fullscreen">
+                    <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`} style={{ transform: 'scaleX(-1)' }} />
+                    
+                    <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity">
+                         <div className="flex items-center gap-4">
+                            {isRecording && <div className="flex items-center gap-2 px-2 py-1 bg-red-600/20 border border-red-500/50 rounded animate-pulse" title="Recording in progress"><div className="w-2 h-2 bg-red-500 rounded-full"/> <span className="text-[10px] font-bold text-red-100">REC</span></div>}
+                         </div>
+                         <div className="flex items-center gap-2">
+                             <button onClick={(e) => { e.stopPropagation(); toggleCamera(); }} className={`p-2 rounded ${isCameraActive ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title={isCameraActive ? "Turn Off Camera" : "Turn On Camera"}>📷</button>
+                             <div className="w-px h-6 bg-zinc-800 mx-1"></div>
+                             <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, showTimer: !c.showTimer}))}} className={`p-2 rounded ${config.showTimer ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`} title="Toggle Timer">⏱</button>
+                             <div className="w-px h-6 bg-zinc-800 mx-1"></div>
+                             <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, fontSize: c.fontSize - 4}))}} className="p-2 bg-zinc-900 rounded text-zinc-300 hover:text-white" title="Decrease Font Size">A-</button>
+                             <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, fontSize: c.fontSize + 4}))}} className="p-2 bg-zinc-900 rounded text-zinc-300 hover:text-white" title="Increase Font Size">A+</button>
+                             <button onClick={(e) => { e.stopPropagation(); setConfig(c => ({...c, isMirrored: !c.isMirrored}))}} className={`p-2 rounded ${config.isMirrored ? 'bg-indigo-600' : 'bg-zinc-900'}`} title="Mirror Text">Mirror</button>
+                        </div>
+                    </div>
+                    
+                    {config.showTimer && (
+                        <div className={`absolute top-6 left-6 z-30 pointer-events-none select-none transition-transform ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
+                            <div className="font-mono text-4xl sm:text-5xl font-bold text-white/30 tracking-wider tabular-nums drop-shadow-md">
+                                {formatTime(elapsedTime)}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex-1 relative overflow-hidden z-10">
+                        <div className="absolute inset-0 pointer-events-none z-20 flex items-center"><div className="w-full h-px bg-red-600/40"/></div>
+                        <div ref={containerRef} onWheel={() => {if(isPlaying)setIsPlaying(false); isManualScroll.current=true;}} onTouchStart={()=>{if(isPlaying)setIsPlaying(false); isManualScroll.current=true;}} onMouseDown={()=>{if(isPlaying)setIsPlaying(false); isManualScroll.current=true;}} onScroll={handleScroll} className={`h-full overflow-y-auto relative ${config.isMirrored ? 'scale-y-[-1] scale-x-[-1]' : ''} touch-pan-y no-scrollbar`}>
+                            <div className="py-[45vh] px-6 max-w-4xl mx-auto">
+                                {segments.map((seg, idx) => {
+                                    const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
+                                    return (
+                                        <div key={seg.id} ref={el => segmentRefs.current[idx] = el} 
+                                            className={`mb-10 font-bold text-center leading-[1.1] transition-all duration-300 ${isActive ? 'opacity-100 scale-100' : 'opacity-20 scale-90 blur-[1px]'} drop-shadow-lg`}
+                                            style={{ fontSize: config.fontSize + 'px', textShadow: isCameraActive ? '0 2px 4px rgba(0,0,0,0.8)' : 'none' }} dir="auto">
+                                            {seg.words.map((w, wi) => (
+                                                <span key={wi} className={`inline-block mr-[0.2em] ${w.color || 'text-white'}`}>{w.text}</span>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-zinc-950/90 backdrop-blur border-t border-zinc-900 px-4 py-4 pb-8 sm:pb-4 z-50 transition-colors" onDoubleClick={e => e.stopPropagation()}>
+                         <div className="max-w-xl mx-auto flex items-center justify-between gap-6">
+                             <button onClick={onClose} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white group" title="Exit Teleprompter">
+                                <div className="p-2 bg-zinc-900 rounded-lg group-hover:bg-zinc-800 border border-zinc-800">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                                </div>
+                                <span className="text-[10px] uppercase font-bold tracking-tighter">Exit</span>
+                            </button>
+                            <div className="flex-1 flex flex-col gap-3">
+                                <div className="flex items-center gap-4">
+                                     <input type="range" min="0.1" max="2.5" step="0.1" value={speedMultiplier} onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} className="flex-1 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg cursor-pointer" title="Playback Speed"/>
+                                     <span className="text-[10px] font-mono text-zinc-500 w-10">{speedMultiplier.toFixed(1)}x</span>
+                                </div>
+                                <div className="flex items-center justify-center gap-6">
+                                    <button onClick={() => {setElapsedTime(Math.max(0, elapsedTime-5000))}} className="p-2 text-zinc-500 hover:text-white" title="Rewind 5s">⏪</button>
+                                    <button onClick={handlePlayPause} className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`} title="Play/Pause">
+                                        {isPlaying ? '⏸' : '▶'}
+                                    </button>
+                                    <button onClick={handleStop} className="p-3 bg-zinc-900 rounded-full group" title="Stop & Reset"><div className="w-3 h-3 bg-white rounded-[1px]"/></button>
+                                    <div className="w-px h-8 bg-zinc-800 mx-2"/>
+                                    <button onClick={handleRecordClick} className={`p-3 rounded-full transition-all active:scale-95 ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : '')}`} title={isCameraActive ? "Record" : "Turn on Camera & Record"}>
+                                        <div className={`w-4 h-4 bg-current rounded-${isRecording ? 'sm' : 'full'} transition-all duration-300`}/>
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="w-10"/>
+                         </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ScriptEditor = ({ segments, onSegmentsChange, onStartPrompt }) => {
+            const [activeTab, setActiveTab] = React.useState('write');
+            const [rawText, setRawText] = React.useState(segments.map(s => s.text).join('\n'));
+            const textareaRef = React.useRef(null);
+
+            const syncTextToSegments = () => {
+                const lines = rawText.split('\n').filter(l => l.trim());
+                const newSegs = lines.map((l, i) => {
+                    const existing = segments[i];
+                    return {
+                        id: existing?.text === l ? existing.id : `seg-${Date.now()}-${i}`,
+                        text: l,
+                        words: l.split(' ').map(w => ({ text: w })),
+                        duration: existing?.text === l ? existing.duration : Math.max(1000, l.split(' ').length * 500)
+                    };
+                });
+                onSegmentsChange(newSegs);
+                return newSegs;
+            };
+
+            const handleSwitchToTune = () => {
+                syncTextToSegments();
+                setActiveTab('tune');
+            };
+
+            const handleSwitchToWrite = () => {
+                setRawText(segments.map(s => s.text).join('\n'));
+                setActiveTab('write');
+            };
+
+            const handleStartWithSync = () => {
+                if (activeTab === 'write') syncTextToSegments();
+                onStartPrompt();
+            };
+
+            const applyColorToSelection = (colorClass) => {
+                const selection = window.getSelection();
+                if (!selection || selection.rangeCount === 0) return;
+                const range = selection.getRangeAt(0);
+                
+                const newSegments = segments.map(seg => {
+                    const newWords = seg.words.map((word, wIdx) => {
+                        const el = document.querySelector(`[data-seg-id="${seg.id}"][data-word-idx="${wIdx}"]`);
+                        if (el && range.intersectsNode(el)) return { ...word, color: colorClass };
+                        return word;
+                    });
+                    return { ...seg, words: newWords };
+                });
+                onSegmentsChange(newSegments);
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-zinc-900 rounded-xl border border-zinc-800 shadow-xl overflow-hidden">
+                    <div className="flex flex-col sm:flex-row justify-between p-4 border-b border-zinc-800 bg-zinc-950 gap-4">
+                        <div className="space-x-2 flex">
+                             <button onClick={handleSwitchToWrite} className={`flex-1 sm:flex-none px-4 py-2 rounded ${activeTab === 'write' ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`} title="Edit raw text">Write</button>
+                             <button onClick={handleSwitchToTune} className={`flex-1 sm:flex-none px-4 py-2 rounded ${activeTab === 'tune' ? 'bg-zinc-800 text-white' : 'text-zinc-400'}`} title="Adjust colors and timing">Tune</button>
+                        </div>
+                        <Button onClick={handleStartWithSync} title="Launch Teleprompter">Start</Button>
+                    </div>
+                    <div className="flex-1 overflow-hidden relative">
+                        {activeTab === 'write' ? (
+                             <div className="h-full p-4 flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                    <Button variant="secondary" size="sm" onClick={syncTextToSegments} title="Save text">Save</Button>
+                                </div>
+                                <textarea className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded border border-zinc-800 resize-none focus:outline-none" 
+                                value={rawText} onChange={e => setRawText(e.target.value)} placeholder="Enter script here..." dir="auto" title="Script Editor"/>
+                             </div>
+                        ) : (
+                            <div className="flex flex-col h-full overflow-hidden">
+                                <div className="shrink-0 p-2 bg-zinc-950 border-b border-zinc-800 flex items-center justify-center gap-2">
+                                    <span className="text-[10px] text-zinc-500 uppercase font-bold mr-2">Color:</span>
+                                    {COLOR_PALETTE.map((c, i) => (
+                                        <button key={i} onMouseDown={(e) => { e.preventDefault(); applyColorToSelection(c.class); }} className={`w-6 h-6 rounded-full border border-zinc-700 ${c.bg} ${c.class===''?'bg-zinc-800':''}`} title={c.label}/>
+                                    ))}
+                                    <span className="text-[10px] text-zinc-600 ml-2">Select text to color</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar select-text" title="Tune Mode">
+                                    {segments.map((s, i) => (
+                                        <div key={s.id} className="bg-zinc-950 p-4 rounded border border-zinc-800">
+                                            <div className="flex flex-wrap gap-1 leading-relaxed" dir="auto">
+                                                {s.words.map((w, wi) => (
+                                                    <span key={wi} data-seg-id={s.id} data-word-idx={wi} className={`rounded px-1 text-lg font-medium cursor-text ${w.color || 'text-zinc-200'}`}>{w.text}</span>
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-zinc-900">
+                                                <input type="range" min="100" max="15000" step="100" value={s.duration} onChange={e => {
+                                                    const newSegs = [...segments]; newSegs[i].duration = parseInt(e.target.value); onSegmentsChange(newSegs);
+                                                }} className="flex-1 accent-indigo-500" title="Adjust Duration"/>
+                                                <span className="text-xs text-zinc-500 w-12 text-right">{(s.duration/1000).toFixed(1)}s</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [segments, setSegments] = React.useState([
+                { id: '1', text: "Welcome to Teleprompter PRO.", words: [{text:"Welcome"},{text:"to"},{text:"Teleprompter"},{text:"PRO."}], duration: 2000 },
+                { id: '2', text: "Tap words to color them.", words: [{text:"Tap"},{text:"words"},{text:"to"},{text:"color", color:'text-yellow-400'},{text:"them."}], duration: 3000 }
+            ]);
+            const [mode, setMode] = React.useState(AppMode.EDITOR);
+
+            const handleDoubleClick = (e) => {
+                const target = e.target;
+                const isInteractive = ['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT', 'A'].includes(target.tagName) || target.closest('button') || target.isContentEditable;
+                if (isInteractive) return;
+
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(e=>console.log(e));
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                }
+            };
+
+            return (
+                <div className="h-screen flex flex-col overflow-hidden" onDoubleClick={handleDoubleClick} title="Double-click empty area for Fullscreen">
+                    {mode === AppMode.EDITOR ? (
+                        <div className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full flex flex-col">
+                            <h1 className="text-xl font-bold mb-4 text-white">Teleprompter PRO <span className="text-xs font-normal text-zinc-500">v1.2.3</span></h1>
+                            <div className="flex-1 overflow-hidden">
+                                <ScriptEditor segments={segments} onSegmentsChange={setSegments} onStartPrompt={() => setMode(AppMode.PROMPTER)}/>
+                            </div>
+                        </div>
+                    ) : (
+                        <TeleprompterView segments={segments} onClose={() => setMode(AppMode.EDITOR)}/>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
