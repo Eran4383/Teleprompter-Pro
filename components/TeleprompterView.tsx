@@ -16,8 +16,15 @@ const formatTime = (ms: number) => {
 const FILTER_STYLES: Record<VideoFilterType, React.CSSProperties> = {
     none: {},
     warm: { filter: 'sepia(0.4) saturate(1.2)' },
-    cool: { filter: 'hue-rotate(180deg) saturate(0.8) contrast(1.1)' }, // Simplified cool look (shifts skin tones a bit blue)
+    cool: { filter: 'hue-rotate(180deg) saturate(0.8) contrast(1.1)' },
     bw: { filter: 'grayscale(1)' }
+};
+
+const DEFAULTS = {
+    fontSize: 54,
+    guideOpacity: 0.2,
+    zoom: 1,
+    exposure: 0
 };
 
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
@@ -28,16 +35,20 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     // Camera & Recording State
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
-    // Initialize as empty object to indicate "checked but maybe empty" vs null "not checked"
     const [cameraCapabilities, setCameraCapabilities] = useState<MediaTrackCapabilities | null>(null);
     const [cameraSettings, setCameraSettings] = useState<MediaTrackSettings | null>(null);
-    const [showSettings, setShowSettings] = useState(false);
     
+    // Settings UI State
+    const [showSettings, setShowSettings] = useState(false);
+    const [settingsPos, setSettingsPos] = useState({ x: 20, y: 80 }); // Initial Position
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
     const [config, setConfig] = useState<PromptConfig>({
-        fontSize: 54,
+        fontSize: DEFAULTS.fontSize,
         isMirrored: false,
         overlayColor: '#000000',
-        guideOpacity: 0.2,
+        guideOpacity: DEFAULTS.guideOpacity,
         showTimer: true,
         videoFilter: 'none'
     });
@@ -65,10 +76,59 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         });
     }, [segments]);
 
+    // --- Drag Logic ---
+    const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+        setIsDragging(true);
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        
+        // Calculate the difference between cursor/finger and the element's top-left corner
+        setDragOffset({
+            x: clientX - settingsPos.x,
+            y: clientY - settingsPos.y
+        });
+    };
+
+    const handleDragMove = (e: MouseEvent | TouchEvent) => {
+        if (!isDragging) return;
+        e.preventDefault(); // Prevent scrolling while dragging
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+        
+        setSettingsPos({
+            x: clientX - dragOffset.x,
+            y: clientY - dragOffset.y
+        });
+    };
+
+    const handleDragEnd = () => {
+        setIsDragging(false);
+    };
+
+    useEffect(() => {
+        if (isDragging) {
+            window.addEventListener('mousemove', handleDragMove);
+            window.addEventListener('mouseup', handleDragEnd);
+            window.addEventListener('touchmove', handleDragMove, { passive: false });
+            window.addEventListener('touchend', handleDragEnd);
+        } else {
+            window.removeEventListener('mousemove', handleDragMove);
+            window.removeEventListener('mouseup', handleDragEnd);
+            window.removeEventListener('touchmove', handleDragMove);
+            window.removeEventListener('touchend', handleDragEnd);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleDragMove);
+            window.removeEventListener('mouseup', handleDragEnd);
+            window.removeEventListener('touchmove', handleDragMove);
+            window.removeEventListener('touchend', handleDragEnd);
+        };
+    }, [isDragging, dragOffset]);
+
+
     // --- Camera Logic ---
     const toggleCamera = async () => {
         if (isCameraActive) {
-            // Stop logic
             const stream = videoRef.current?.srcObject as MediaStream;
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
@@ -76,12 +136,9 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             if (videoRef.current) videoRef.current.srcObject = null;
             setIsCameraActive(false);
             setCameraCapabilities(null);
-            // We don't necessarily close settings when camera stops, as user might want to adjust text settings
             if (isRecording) stopRecording();
         } else {
-            // Start logic
             try {
-                // Request highest common resolution for better quality
                 const constraints: MediaStreamConstraints = { 
                     video: { 
                         facingMode: 'user',
@@ -101,7 +158,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         setCameraCapabilities(track.getCapabilities());
                         setCameraSettings(track.getSettings());
                     } else {
-                        // Browser doesn't support getCapabilities (e.g. Firefox/Safari sometimes)
                         setCameraCapabilities({}); 
                     }
                 }
@@ -132,10 +188,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             stopRecording();
         } else {
             if (!isCameraActive) {
-                // Just turn on the camera (Preview Mode)
                 await toggleCamera();
             } else {
-                // If camera is already active, start recording
                 startRecording();
             }
         }
@@ -143,8 +197,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleSettingsClick = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        // If camera is off, we still show settings (for text), but we might want to encourage camera use?
-        // User request: "settings button... allows me to open camera even without recording"
         if (!isCameraActive) {
              await toggleCamera();
         }
@@ -161,7 +213,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         const stream = videoRef.current.srcObject as MediaStream;
         
         try {
-            // Prefer high quality mime type
             const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
                 ? 'video/webm;codecs=vp9' 
                 : 'video/webm';
@@ -203,7 +254,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         }
     };
 
-    // --- Cleanup on unmount ---
     useEffect(() => {
         return () => {
             if (isCameraActive) {
@@ -235,12 +285,10 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         }
         
         if (activeIdx === -1) {
-            // At bottom
             if (container.scrollTop + container.clientHeight >= container.scrollHeight - 50) {
                 setElapsedTime(totalDuration);
                 return;
             }
-            // At top (due to padding, this happens less, but reset to 0)
             if (container.scrollTop < 100) {
                  setElapsedTime(0);
                  return;
@@ -293,15 +341,12 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 const segmentData = segmentTimeMap[activeSegmentIndex];
                 const segmentProgress = (elapsedTime - segmentData.start) / (segmentData.end - segmentData.start);
                 
-                // Calculate position to center the current word/segment
                 const targetScroll = elTop - (containerHeight / 2) + (elHeight / 2);
                 const scrollOffset = targetScroll + (elHeight * segmentProgress) - (elHeight/2);
 
                 containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
             }
         } else if (elapsedTime === 0) {
-            // Explicit reset to top logic
-            // We don't scroll to 0, because 0 is empty padding. We scroll to the first element's center pos.
             const firstEl = segmentRefs.current[0];
             if (firstEl && containerRef.current) {
                  const containerHeight = containerRef.current.clientHeight;
@@ -322,7 +367,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleStop = () => {
         setIsPlaying(false);
-        setElapsedTime(0); // This triggers the useEffect to scroll to top
+        setElapsedTime(0);
         isManualScroll.current = false;
         lastTimeRef.current = undefined;
     };
@@ -339,7 +384,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     };
 
     const handleDoubleClick = (e: React.MouseEvent) => {
-        // Prevent fullscreen if clicking controls
         const target = e.target as HTMLElement;
         const isInteractive = ['BUTTON', 'INPUT'].includes(target.tagName) || target.closest('button');
 
@@ -367,7 +411,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         return () => window.removeEventListener('keydown', handler);
     }, [isPlaying, onClose]);
 
-    // Check if we actually have any controls to show
     const hasCameraControls = cameraCapabilities && ((cameraCapabilities as any).torch || (cameraCapabilities as any).zoom || (cameraCapabilities as any).exposureCompensation);
 
     return (
@@ -376,7 +419,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             onDoubleClick={handleDoubleClick}
             title="Double-click empty area for Fullscreen"
         >
-            {/* Camera Video Layer */}
             <video 
                 ref={videoRef} 
                 autoPlay 
@@ -384,15 +426,13 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 muted 
                 className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
                 style={{ 
-                    transform: 'scaleX(-1)', // Mirror camera by default for user preference
+                    transform: 'scaleX(-1)', 
                     ...FILTER_STYLES[config.videoFilter] 
                 }} 
             />
 
-            {/* Top Overlay for settings */}
             <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/80 to-transparent z-40 flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
                 <div className="flex items-center gap-4 pointer-events-auto">
-                     {/* PREVIEW / REC Indicator */}
                      {isCameraActive && !isRecording && (
                         <div className="flex items-center gap-2 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded" title="Camera is ready (Preview Mode)">
                             <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"/>
@@ -408,25 +448,47 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             </div>
             
-            {/* EXTENDED Settings Panel */}
+            {/* DRAGGABLE Settings Panel */}
             {showSettings && (
-                <div className="absolute top-16 right-4 bottom-24 sm:bottom-auto z-40 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]" onDoubleClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                        <span className="font-bold text-white text-sm">Settings</span>
-                        <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white p-1">✕</button>
+                <div 
+                    className="absolute z-50 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]"
+                    style={{ left: settingsPos.x, top: settingsPos.y, cursor: isDragging ? 'grabbing' : 'auto' }}
+                    onDoubleClick={e => e.stopPropagation()}
+                >
+                    <div 
+                        className="flex items-center justify-between border-b border-zinc-800 pb-2 cursor-grab active:cursor-grabbing"
+                        onMouseDown={handleDragStart}
+                        onTouchStart={handleDragStart}
+                    >
+                        <div className="flex items-center gap-2">
+                             <span className="font-bold text-white text-sm">Settings</span>
+                             <svg className="w-3 h-3 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                        </div>
+                        <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white p-1" title="Close">✕</button>
                     </div>
 
-                    {/* Section: Text Display */}
                     <div className="space-y-3">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Text Display</h3>
                         
                         <div className="flex flex-col gap-1">
-                             <div className="flex justify-between text-zinc-400"><span>Font Size</span><span>{config.fontSize}px</span></div>
+                             <div className="flex justify-between text-zinc-400">
+                                 <span>Font Size</span>
+                                 <div className="flex items-center gap-2">
+                                     <span>{config.fontSize}px</span>
+                                     <button onClick={() => setConfig(c => ({...c, fontSize: DEFAULTS.fontSize}))} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                 </div>
+                             </div>
                              <input type="range" min="20" max="150" step="2" value={config.fontSize} onChange={(e) => setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
                         </div>
 
                         <div className="flex flex-col gap-1">
-                             <div className="flex justify-between text-zinc-400"><span>Ghost Opacity</span><span>{Math.round(config.guideOpacity * 100)}%</span></div>
+                             <div className="flex justify-between text-zinc-400">
+                                 <span>Ghost Opacity</span>
+                                 <div className="flex items-center gap-2">
+                                     <span>{Math.round(config.guideOpacity * 100)}%</span>
+                                     <button onClick={() => setConfig(c => ({...c, guideOpacity: DEFAULTS.guideOpacity}))} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                 </div>
+                             </div>
                              <input type="range" min="0" max="1" step="0.1" value={config.guideOpacity} onChange={(e) => setConfig({...config, guideOpacity: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
                         </div>
 
@@ -444,7 +506,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         </div>
                     </div>
 
-                    {/* Section: Video Look */}
                     <div className="space-y-3 pt-2 border-t border-zinc-800">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Video Look</h3>
                          <div className="grid grid-cols-2 gap-2">
@@ -460,14 +521,12 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                          </div>
                     </div>
 
-                    {/* Section: Camera Hardware */}
                     {isCameraActive && (
                         <div className="space-y-3 pt-2 border-t border-zinc-800">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Camera Hardware</h3>
                             
                             {!hasCameraControls && <p className="text-zinc-600 italic">No advanced controls available.</p>}
 
-                            {/* Flash / Torch */}
                             {cameraCapabilities && (cameraCapabilities as any).torch && (
                                 <div className="flex items-center justify-between">
                                     <span className="text-zinc-400">Flash</span>
@@ -480,12 +539,14 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                 </div>
                             )}
 
-                            {/* Zoom */}
                             {cameraCapabilities && (cameraCapabilities as any).zoom && (
                                 <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400">
                                         <span>Zoom</span>
-                                        <span>{(cameraSettings as any)?.zoom?.toFixed(1)}x</span>
+                                        <div className="flex items-center gap-2">
+                                            <span>{(cameraSettings as any)?.zoom?.toFixed(1)}x</span>
+                                            <button onClick={() => applyCameraConstraint('zoom', DEFAULTS.zoom)} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                        </div>
                                     </div>
                                     <input 
                                         type="range" 
@@ -499,12 +560,14 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                 </div>
                             )}
                             
-                            {/* Exposure Compensation */}
                             {cameraCapabilities && (cameraCapabilities as any).exposureCompensation && (
                                 <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400">
                                         <span>Exposure</span>
-                                        <span>{(cameraSettings as any)?.exposureCompensation?.toFixed(1)}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span>{(cameraSettings as any)?.exposureCompensation?.toFixed(1)}</span>
+                                            <button onClick={() => applyCameraConstraint('exposureCompensation', DEFAULTS.exposure)} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                        </div>
                                     </div>
                                     <input 
                                         type="range" 
@@ -522,7 +585,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             )}
 
-            {/* Persistent Timer Overlay */}
             {config.showTimer && (
                 <div className={`absolute top-6 left-6 z-30 pointer-events-none select-none transition-transform ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
                     <div className="font-mono text-4xl sm:text-5xl font-bold text-white/30 tracking-wider tabular-nums drop-shadow-md">
@@ -531,7 +593,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             )}
 
-            {/* Main Content */}
             <div className="flex-1 relative overflow-hidden z-10">
                 <div className="absolute inset-0 pointer-events-none z-20 flex items-center">
                     <div className="w-full h-px bg-red-600/40 shadow-[0_0_15px_rgba(220,38,38,0.5)]" />
@@ -574,13 +635,10 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             </div>
 
-            {/* Responsive Bottom Bar */}
             <div className="bg-zinc-950/90 backdrop-blur border-t border-zinc-900 px-4 py-4 pb-8 sm:pb-4 z-50 transition-colors" onDoubleClick={(e) => e.stopPropagation()}>
                 <div className="max-w-2xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
                     
-                    {/* Top Row on Mobile: Exit Button (left) and Speed Slider (right) to save vertical space */}
                     <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-                         {/* EXIT BUTTON */}
                         <button 
                             onClick={onClose}
                             className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors group shrink-0"
@@ -591,7 +649,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                             </div>
                         </button>
 
-                        {/* Speed Control - Mobile Optimized */}
                         <div className="flex items-center gap-3 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/50 flex-1 sm:hidden">
                              <span className="text-[10px] font-bold text-zinc-500 uppercase">Speed</span>
                              <input 
@@ -607,10 +664,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         </div>
                     </div>
 
-                    {/* Bottom Row on Mobile: Main Controls */}
                     <div className="flex items-center justify-center gap-4 sm:gap-6 w-full sm:w-auto">
-                        
-                        {/* Speed Control - Desktop */}
                         <div className="hidden sm:flex items-center gap-4 w-48">
                              <input 
                                 type="range" 
@@ -650,7 +704,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                              
                              <div className="w-px h-6 sm:h-8 bg-zinc-800 mx-1"/>
 
-                             {/* SETTINGS BUTTON */}
                              <button 
                                 onClick={handleSettingsClick}
                                 className={`p-2 sm:p-3 rounded-full transition-all active:scale-95 ${showSettings ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-white'}`}
@@ -659,7 +712,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                              </button>
 
-                             {/* RECORD BUTTON */}
                              <button 
                                 onClick={handleRecordClick} 
                                 className={`p-2 sm:p-3 rounded-full transition-all active:scale-95 ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : '')}`}

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.10 - Documentation & Demo</title>
+    <title>Teleprompter PRO v1.2.11 - Documentation & Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- React 18 -->
@@ -25,7 +25,7 @@
 
     <script type="text/babel">
         // --- Constants ---
-        const APP_VERSION = "v1.2.10";
+        const APP_VERSION = "v1.2.11";
         const AppMode = {
             EDITOR: 'EDITOR',
             PROMPTER: 'PROMPTER'
@@ -50,6 +50,13 @@
             warm: { filter: 'sepia(0.4) saturate(1.2)' },
             cool: { filter: 'hue-rotate(180deg) saturate(0.8) contrast(1.1)' },
             bw: { filter: 'grayscale(1)' }
+        };
+        
+        const DEFAULTS = {
+            fontSize: 54,
+            guideOpacity: 0.2,
+            zoom: 1,
+            exposure: 0
         };
 
         // --- Services (Mock for Demo) ---
@@ -281,7 +288,8 @@
                                         </div>
                                     </div>
                                 </div>
-                                <textarea ref={textareaRef} className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded-lg resize-none border border-zinc-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-base leading-relaxed overflow-y-auto" placeholder="Type or paste your text here..." value={rawText} onChange={(e) => setRawText(e.target.value)} dir="auto" title="Editor Area: Type your script here" />
+                                <textarea ref={textareaRef} className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded-lg resize-none border border-zinc-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-base leading-relaxed overflow-y-auto select-text" 
+                                placeholder="Type or paste your text here..." value={rawText} onChange={(e) => setRawText(e.target.value)} dir="auto" title="Editor Area: Type your script here" onContextMenu={(e) => e.stopPropagation()} />
                                 <p className="text-[10px] text-zinc-500 text-center">Coloring is available in the "Tune" tab.</p>
                             </div>
                         )}
@@ -339,9 +347,13 @@
             const [isRecording, setIsRecording] = React.useState(false);
             const [cameraCapabilities, setCameraCapabilities] = React.useState(null);
             const [cameraSettings, setCameraSettings] = React.useState(null);
-            const [showSettings, setShowSettings] = React.useState(false);
             
-            const [config, setConfig] = React.useState({ fontSize: 60, isMirrored: false, guideOpacity: 0.2, showTimer: true, videoFilter: 'none' });
+            const [showSettings, setShowSettings] = React.useState(false);
+            const [settingsPos, setSettingsPos] = React.useState({ x: 20, y: 80 });
+            const [isDragging, setIsDragging] = React.useState(false);
+            const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+
+            const [config, setConfig] = React.useState({ fontSize: 54, isMirrored: false, guideOpacity: 0.2, showTimer: true, videoFilter: 'none' });
             
             const containerRef = React.useRef(null);
             const requestRef = React.useRef();
@@ -362,6 +374,43 @@
                     return { start, end: acc, id: s.id, duration: s.duration };
                 });
             }, [segments]);
+            
+            const handleDragStart = (e) => {
+                setIsDragging(true);
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                setDragOffset({ x: clientX - settingsPos.x, y: clientY - settingsPos.y });
+            };
+
+            const handleDragMove = (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                setSettingsPos({ x: clientX - dragOffset.x, y: clientY - dragOffset.y });
+            };
+
+            const handleDragEnd = () => setIsDragging(false);
+
+            React.useEffect(() => {
+                if (isDragging) {
+                    window.addEventListener('mousemove', handleDragMove);
+                    window.addEventListener('mouseup', handleDragEnd);
+                    window.addEventListener('touchmove', handleDragMove, { passive: false });
+                    window.addEventListener('touchend', handleDragEnd);
+                } else {
+                    window.removeEventListener('mousemove', handleDragMove);
+                    window.removeEventListener('mouseup', handleDragEnd);
+                    window.removeEventListener('touchmove', handleDragMove);
+                    window.removeEventListener('touchend', handleDragEnd);
+                }
+                return () => {
+                    window.removeEventListener('mousemove', handleDragMove);
+                    window.removeEventListener('mouseup', handleDragEnd);
+                    window.removeEventListener('touchmove', handleDragMove);
+                    window.removeEventListener('touchend', handleDragEnd);
+                };
+            }, [isDragging, dragOffset]);
 
             const formatTime = (ms) => {
                 const totalSeconds = Math.floor(ms / 1000);
@@ -550,13 +599,13 @@
                 lastTimeRef.current = undefined;
             };
 
-            const handleScroll = () => {
-                if(!isPlaying) syncTimeFromScroll();
-            };
-
             const handleUserInteraction = () => {
                 if (isPlaying) setIsPlaying(false);
                 isManualScroll.current = true;
+            };
+
+            const handleScroll = () => {
+                if(!isPlaying) syncTimeFromScroll();
             };
 
             const handleDoubleClick = (e) => {
@@ -601,20 +650,39 @@
                     </div>
                     
                     {showSettings && (
-                        <div className="absolute top-16 right-4 bottom-24 sm:bottom-auto z-40 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]" onDoubleClick={e => e.stopPropagation()}>
-                            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                                <span className="font-bold text-white text-sm">Settings</span>
-                                <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white p-1">✕</button>
+                        <div 
+                            className="absolute z-50 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]"
+                            style={{ left: settingsPos.x, top: settingsPos.y, cursor: isDragging ? 'grabbing' : 'auto' }}
+                            onDoubleClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between border-b border-zinc-800 pb-2 cursor-grab active:cursor-grabbing" onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-white text-sm">Settings</span>
+                                    <svg className="w-3 h-3 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                </div>
+                                <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white p-1" title="Close">✕</button>
                             </div>
 
                             <div className="space-y-3">
                                 <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Text Display</h3>
                                 <div className="flex flex-col gap-1">
-                                     <div className="flex justify-between text-zinc-400"><span>Font Size</span><span>{config.fontSize}px</span></div>
+                                     <div className="flex justify-between text-zinc-400">
+                                         <span>Font Size</span>
+                                         <div className="flex items-center gap-2">
+                                             <span>{config.fontSize}px</span>
+                                             <button onClick={() => setConfig(c => ({...c, fontSize: DEFAULTS.fontSize}))} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                         </div>
+                                     </div>
                                      <input type="range" min="20" max="150" step="2" value={config.fontSize} onChange={(e) => setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
                                 </div>
                                 <div className="flex flex-col gap-1">
-                                     <div className="flex justify-between text-zinc-400"><span>Ghost Opacity</span><span>{Math.round(config.guideOpacity * 100)}%</span></div>
+                                     <div className="flex justify-between text-zinc-400">
+                                         <span>Ghost Opacity</span>
+                                         <div className="flex items-center gap-2">
+                                             <span>{Math.round(config.guideOpacity * 100)}%</span>
+                                             <button onClick={() => setConfig(c => ({...c, guideOpacity: DEFAULTS.guideOpacity}))} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                         </div>
+                                     </div>
                                      <input type="range" min="0" max="1" step="0.1" value={config.guideOpacity} onChange={(e) => setConfig({...config, guideOpacity: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
                                 </div>
                                 <div className="flex items-center justify-between">
@@ -656,13 +724,25 @@
                                     )}
                                     {cameraCapabilities && cameraCapabilities.zoom && (
                                          <div className="flex flex-col gap-1">
-                                            <div className="flex justify-between text-zinc-400"><span>Zoom</span><span>{cameraSettings?.zoom?.toFixed(1)}x</span></div>
+                                            <div className="flex justify-between text-zinc-400">
+                                                <span>Zoom</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span>{cameraSettings?.zoom?.toFixed(1)}x</span>
+                                                    <button onClick={() => applyCameraConstraint('zoom', 1)} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                                </div>
+                                            </div>
                                             <input type="range" min={cameraCapabilities.zoom.min} max={cameraCapabilities.zoom.max} step={0.1} value={cameraSettings?.zoom || 1} onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/>
                                         </div>
                                     )}
                                      {cameraCapabilities && cameraCapabilities.exposureCompensation && (
                                          <div className="flex flex-col gap-1">
-                                            <div className="flex justify-between text-zinc-400"><span>Exposure</span><span>{cameraSettings?.exposureCompensation?.toFixed(1)}</span></div>
+                                            <div className="flex justify-between text-zinc-400">
+                                                <span>Exposure</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span>{cameraSettings?.exposureCompensation?.toFixed(1)}</span>
+                                                    <button onClick={() => applyCameraConstraint('exposureCompensation', 0)} className="text-zinc-600 hover:text-indigo-400" title="Reset">↺</button>
+                                                </div>
+                                            </div>
                                             <input type="range" min={cameraCapabilities.exposureCompensation.min} max={cameraCapabilities.exposureCompensation.max} step={cameraCapabilities.exposureCompensation.step} value={cameraSettings?.exposureCompensation || 0} onChange={(e) => applyCameraConstraint('exposureCompensation', parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/>
                                         </div>
                                     )}

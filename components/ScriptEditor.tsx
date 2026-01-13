@@ -149,9 +149,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         });
 
         onSegmentsChange(newSegments);
-        
-        // Clear selection after apply? Optional, but feels cleaner.
-        // selection.removeAllRanges();
     };
 
     const splitSegment = (segment: ScriptSegment) => {
@@ -238,12 +235,13 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
 
                         <textarea
                             ref={textareaRef}
-                            className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded-lg resize-none border border-zinc-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-base leading-relaxed overflow-y-auto"
+                            className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded-lg resize-none border border-zinc-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-base leading-relaxed overflow-y-auto select-text"
                             placeholder="Type or paste your text here..."
                             value={rawText}
                             onChange={(e) => setRawText(e.target.value)}
                             dir="auto"
                             title="Editor Area: Type your script here"
+                            onContextMenu={(e) => e.stopPropagation()} // Allow native context menu
                         />
                         <p className="text-[10px] text-zinc-500 text-center">Coloring is available in the "Tune" tab.</p>
                     </div>

@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.10 - Critical fix for standalone build (App not defined error).",
+  "description": "Teleprompter PRO v1.2.11 - Draggable settings, reset buttons, and text selection fixes.",
   "requestFramePermissions": [
     "camera",
     "microphone"
