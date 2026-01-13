@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teleprompter PRO v1.2.3 - Documentation & Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    
+    <!-- Updated to React 18.2.0 specifically for stability -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- Updated to Babel 7 (Standlone) to support modern JSX Fragments (<>...</>) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #f4f4f5; }
@@ -40,7 +45,6 @@
         ];
 
         // --- Services (Mock for Demo) ---
-        // Note: Real AI services require API keys which are not secure in static GitHub Pages demos.
         const optimizeScript = async (text) => {
             return new Promise(resolve => {
                 setTimeout(() => {
@@ -535,7 +539,7 @@
             return (
                 <div className="h-screen w-full bg-zinc-950 text-zinc-100 flex flex-col font-sans overflow-hidden" onDoubleClick={handleDoubleClick} title="Double-click empty area for Fullscreen">
                     {mode === AppMode.EDITOR ? (
-                         <>
+                         <React.Fragment>
                             <header className="px-4 py-3 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center shrink-0">
                                 <div className="flex items-center space-x-2">
                                     <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/20">
@@ -556,7 +560,7 @@
                                     <ScriptEditor segments={segments} onSegmentsChange={setSegments} onStartPrompt={() => setMode(AppMode.PROMPTER)}/>
                                 </div>
                             </div>
-                        </>
+                        </React.Fragment>
                     ) : (
                         <TeleprompterView segments={segments} onClose={() => setMode(AppMode.EDITOR)}/>
                     )}
