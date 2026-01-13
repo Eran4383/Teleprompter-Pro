@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.15 - Documentation & Demo</title>
+    <title>Teleprompter PRO v1.2.17 - Documentation & Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- React 18 -->
@@ -18,6 +18,14 @@
         body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #f4f4f5; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @keyframes modal-pop {
+            0% { transform: scale(0.95); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-modal-pop {
+            animation: modal-pop 0.15s ease-out forwards;
+        }
     </style>
 </head>
 <body>
@@ -25,7 +33,7 @@
 
     <script type="text/babel">
         // --- Constants ---
-        const APP_VERSION = "v1.2.15";
+        const APP_VERSION = "v1.2.17";
         const AppMode = {
             EDITOR: 'EDITOR',
             PROMPTER: 'PROMPTER'
@@ -41,15 +49,15 @@
         
         const DEFAULT_SCRIPT = [
             { id: '1', text: "Welcome to Teleprompter PRO.", words: [{text:"Welcome"},{text:"to"},{text:"Teleprompter"},{text:"PRO."}], duration: 2000 },
-            { id: '2', text: "This version includes optimized MP4 recording.", words: [{text:"This"},{text:"version"},{text:"includes"},{text:"optimized"},{text:"MP4"},{text:"recording."}], duration: 3000 },
-            { id: '3', text: "History archives are now fully synchronized.", words: [{text:"History"},{text:"archives"},{text:"are"},{text:"now"},{text:"fully"},{text:"synchronized."}], duration: 3500 }
+            { id: '2', text: "We've upgraded the video controls.", words: [{text:"We've"},{text:"upgraded"},{text:"the"},{text:"video"},{text:"controls."}], duration: 3000 },
+            { id: '3', text: "Scripts now auto-save to history on sync.", words: [{text:"Scripts"},{text:"now"},{text:"auto-save"},{text:"to"},{text:"history"},{text:"on"},{text:"sync."}], duration: 3500 },
+            { id: '4', text: "Try the new Brightness and Contrast sliders.", words: [{text:"Try"},{text:"the"},{text:"new"},{text:"Brightness"},{text:"and"},{text:"Contrast"},{text:"sliders."}], duration: 4000 },
         ];
         
         const FILTER_STYLES = {
-            none: {},
-            warm: { filter: 'sepia(0.4) saturate(1.2)' },
+            warm: { filter: 'sepia(0.3) saturate(1.4) contrast(1.1)' },
             cool: { filter: 'hue-rotate(180deg) saturate(0.8) contrast(1.1)' },
-            bw: { filter: 'grayscale(1)' }
+            bw: { filter: 'grayscale(1) contrast(1.2)' }
         };
         
         const DEFAULTS = {
@@ -60,29 +68,7 @@
         };
 
         const AI_SYSTEM_PROMPT = `You are a script generator for a Teleprompter App.
-Please output a raw JSON Array (and nothing else).
-Each object in the array represents a segment and must follow this structure:
-
-[
-  {
-    "id": "unique_string_1",
-    "text": "The full sentence or phrase for this line.",
-    "duration": 3000,
-    "words": [
-      { "text": "The" },
-      { "text": "full" },
-      { "text": "sentence", "color": "text-yellow-400" },
-      { "text": "or" },
-      { "text": "phrase", "color": "text-red-500" }
-    ]
-  }
-]
-
-**Rules:**
-1. "duration" is in milliseconds. Estimate approx 300ms per word + 500ms for pauses.
-2. "words" is an array breaking down the "text".
-3. You can add "color" to specific words to highlight them. Use Tailwind classes: 'text-yellow-400', 'text-red-500', 'text-green-400', 'text-cyan-400', 'text-purple-400'.
-4. Ensure the JSON is valid.`;
+Please output a raw JSON Array (and nothing else).`;
 
         // --- Services (Mock for Demo) ---
         const optimizeScript = async (text) => {
@@ -125,6 +111,7 @@ Each object in the array represents a segment and must follow this structure:
             const variants = {
                 primary: "bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-500",
                 secondary: "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 focus:ring-zinc-600 border border-zinc-700",
+                danger: "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500",
                 ghost: "bg-transparent hover:bg-zinc-800 text-zinc-400 hover:text-white"
             };
             const sizes = {
@@ -139,6 +126,40 @@ Each object in the array represents a segment and must follow this structure:
             );
         };
 
+        const Modal = ({ isOpen, title, message, onClose, onConfirm, confirmText = "OK", isInput, inputValue, onInputChange, type = 'info' }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm p-5 animate-modal-pop" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+                        {message && <p className="text-zinc-400 text-sm mb-4 leading-relaxed">{message}</p>}
+                        
+                        {isInput && onInputChange && (
+                            <input 
+                                type="text" 
+                                value={inputValue} 
+                                onChange={e => onInputChange(e.target.value)}
+                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white text-sm mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                autoFocus
+                            />
+                        )}
+
+                        <div className="flex justify-end gap-2 mt-2">
+                            <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                            {onConfirm && (
+                                <button 
+                                    onClick={() => { onConfirm(); onClose(); }} 
+                                    className={`px-4 py-2 text-xs font-medium rounded-lg text-white transition-colors ${type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                                >
+                                    {confirmText}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const ScriptEditor = ({ segments, onSegmentsChange, onStartPrompt }) => {
             const [activeTab, setActiveTab] = React.useState('write');
             const [rawText, setRawText] = React.useState(segments.map(s => s.text).join('\n'));
@@ -146,6 +167,11 @@ Each object in the array represents a segment and must follow this structure:
             const [topicInput, setTopicInput] = React.useState('');
             const [toast, setToast] = React.useState(null);
             const [savedScripts, setSavedScripts] = React.useState([]);
+            const [currentScriptId, setCurrentScriptId] = React.useState(null);
+            
+            // Modal State
+            const [modalConfig, setModalConfig] = React.useState({ isOpen: false });
+            const [tempInput, setTempInput] = React.useState('');
             
             const textareaRef = React.useRef(null);
             const tuneContainerRef = React.useRef(null);
@@ -175,6 +201,40 @@ Each object in the array represents a segment and must follow this structure:
                 setTimeout(() => setToast(null), 3000);
             };
 
+            const saveCurrentToHistory = (segmentsToSave) => {
+                if (!segmentsToSave || segmentsToSave.length === 0 || (segmentsToSave.length === 1 && !segmentsToSave[0].text.trim())) return;
+
+                const rawContent = segmentsToSave.map(s => s.text).join('\n');
+                const firstLine = segmentsToSave.find(s => s.text.trim().length > 0)?.text || "Untitled Script";
+                const generatedTitle = firstLine.split(' ').slice(0, 3).join(' ') + (firstLine.split(' ').length > 3 ? '...' : '');
+
+                let updatedHistory = [...savedScripts];
+                let newId = currentScriptId;
+
+                if (currentScriptId) {
+                    updatedHistory = updatedHistory.map(s => s.id === currentScriptId ? {
+                        ...s,
+                        segments: segmentsToSave,
+                        rawText: rawContent,
+                        date: new Date().toISOString()
+                    } : s);
+                } else {
+                    newId = Date.now().toString();
+                    const newScript = {
+                        id: newId,
+                        title: generatedTitle,
+                        date: new Date().toISOString(),
+                        segments: segmentsToSave,
+                        rawText: rawContent
+                    };
+                    updatedHistory = [newScript, ...updatedHistory];
+                    setCurrentScriptId(newId);
+                }
+
+                setSavedScripts(updatedHistory);
+                localStorage.setItem('teleprompter_history', JSON.stringify(updatedHistory));
+            };
+
             const syncTextToSegments = () => {
                 const lines = rawText.split('\n').filter(line => line.trim() !== '');
                 const newSegments = lines.map((line, index) => {
@@ -190,7 +250,13 @@ Each object in the array represents a segment and must follow this structure:
                     };
                 });
                 onSegmentsChange(newSegments);
+                saveCurrentToHistory(newSegments);
                 return newSegments;
+            };
+
+            const handleSaveAndSync = () => {
+                syncTextToSegments();
+                showToast("Saved & Synced");
             };
 
             const handleSwitchToTune = () => {
@@ -206,10 +272,6 @@ Each object in the array represents a segment and must follow this structure:
             const handleSwitchToHistory = () => {
                 loadHistoryFromStorage();
                 setActiveTab('history');
-            };
-
-            const handleSave = () => {
-                syncTextToSegments();
             };
 
             const handleSelectAll = () => {
@@ -233,51 +295,51 @@ Each object in the array represents a segment and must follow this structure:
             const handleStartWithSync = () => {
                 if (activeTab === 'write') {
                     syncTextToSegments();
+                } else {
+                    saveCurrentToHistory(segments);
                 }
                 onStartPrompt();
             };
 
-            // History
-            const handleSaveToHistory = () => {
-                let currentSegments = segments;
-                if (activeTab === 'write') currentSegments = syncTextToSegments();
-                if (currentSegments.length === 0) { showToast("Cannot save empty script.", "error"); return; }
-                
-                const title = prompt("Enter a title for this script:", "Script " + new Date().toLocaleString());
-                if (!title) return;
-                
-                const newScript = {
-                    id: Date.now().toString(),
-                    title,
-                    date: new Date().toISOString(),
-                    segments: currentSegments,
-                    rawText: currentSegments.map(s => s.text).join('\n')
-                };
-                const updatedHistory = [newScript, ...savedScripts];
-                setSavedScripts(updatedHistory);
-                localStorage.setItem('teleprompter_history', JSON.stringify(updatedHistory));
-                showToast("Script saved to Archive!");
-            };
-
             const handleLoadFromHistory = (script) => {
-                if (confirm(`Load "${script.title}"? Current text will be replaced.`)) {
-                    onSegmentsChange(script.segments);
-                    setRawText(script.rawText);
-                    setTimeout(() => {
+                setModalConfig({
+                    isOpen: true,
+                    title: "Load Script?",
+                    message: `Load "${script.title}"? Unsaved changes will be overwritten.`,
+                    confirmText: "Load",
+                    onConfirm: () => {
+                        onSegmentsChange(script.segments);
+                        setRawText(script.rawText);
+                        setCurrentScriptId(script.id);
                         setActiveTab('write');
                         showToast("Script loaded.");
-                    }, 50);
-                }
+                    }
+                });
             };
 
             const handleDeleteFromHistory = (id, e) => {
                 e.stopPropagation();
-                if (confirm("Delete this saved script?")) {
-                    const updated = savedScripts.filter(s => s.id !== id);
-                    setSavedScripts(updated);
-                    localStorage.setItem('teleprompter_history', JSON.stringify(updated));
-                    showToast("Script deleted.");
-                }
+                setModalConfig({
+                    isOpen: true,
+                    title: "Delete Script",
+                    message: "Permanently delete this script?",
+                    type: "danger",
+                    confirmText: "Delete",
+                    onConfirm: () => {
+                        const updated = savedScripts.filter(s => s.id !== id);
+                        setSavedScripts(updated);
+                        localStorage.setItem('teleprompter_history', JSON.stringify(updated));
+                        if (currentScriptId === id) setCurrentScriptId(null);
+                        showToast("Script deleted.");
+                    }
+                });
+            };
+
+            const confirmRename = (id, newName) => {
+                const updated = savedScripts.map(s => s.id === id ? { ...s, title: newName } : s);
+                setSavedScripts(updated);
+                localStorage.setItem('teleprompter_history', JSON.stringify(updated));
+                showToast("Script renamed.");
             };
 
             const handleAIOptimize = async () => {
@@ -288,8 +350,9 @@ Each object in the array represents a segment and must follow this structure:
                     onSegmentsChange(optimized);
                     setRawText(optimized.map(s => s.text).join('\n'));
                     setActiveTab('tune');
+                    saveCurrentToHistory(optimized);
                 } catch (e) {
-                    alert('Failed to optimize script.');
+                    setModalConfig({isOpen: true, title: "AI Error", message: "Failed to optimize script.", type: 'danger', onClose: () => setModalConfig({...modalConfig, isOpen: false})});
                 } finally {
                     setIsProcessing(false);
                 }
@@ -304,8 +367,9 @@ Each object in the array represents a segment and must follow this structure:
                     setRawText(generated.map(s => s.text).join('\n'));
                     setTopicInput('');
                     setActiveTab('tune');
+                    saveCurrentToHistory(generated);
                 } catch (e) {
-                    alert('Failed to generate script.');
+                    setModalConfig({isOpen: true, title: "AI Error", message: "Failed to generate script.", type: 'danger', onClose: () => setModalConfig({...modalConfig, isOpen: false})});
                 } finally {
                     setIsProcessing(false);
                 }
@@ -358,14 +422,15 @@ Each object in the array represents a segment and must follow this structure:
             };
 
             const updateSegment = (id, updates) => {
-                onSegmentsChange(segments.map(s => {
+                const newSegs = segments.map(s => {
                     if (s.id !== id) return s;
                     const updated = { ...s, ...updates };
                     if (updates.text !== undefined && updates.text !== s.text) {
                         updated.words = updates.text.split(' ').map(w => ({ text: w }));
                     }
                     return updated;
-                }));
+                });
+                onSegmentsChange(newSegs);
             };
 
             const applyColorToSelection = (colorClass) => {
@@ -384,6 +449,7 @@ Each object in the array represents a segment and must follow this structure:
                     return { ...seg, words: newWords };
                 });
                 onSegmentsChange(newSegments);
+                saveCurrentToHistory(newSegments);
             };
 
             const splitSegment = (segment) => {
@@ -401,10 +467,30 @@ Each object in the array represents a segment and must follow this structure:
                 const newSegments = [...segments];
                 newSegments.splice(index, 1, newSeg1, newSeg2);
                 onSegmentsChange(newSegments);
+                saveCurrentToHistory(newSegments);
             };
 
             return (
                 <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 relative">
+                     <Modal 
+                        isOpen={modalConfig.isOpen} 
+                        title={modalConfig.title} 
+                        message={modalConfig.message}
+                        confirmText={modalConfig.confirmText}
+                        type={modalConfig.type}
+                        isInput={modalConfig.isInput}
+                        inputValue={tempInput}
+                        onInputChange={setTempInput}
+                        onClose={() => setModalConfig({...modalConfig, isOpen: false})}
+                        onConfirm={() => {
+                            if (modalConfig.isInput && modalConfig.editingId) {
+                                confirmRename(modalConfig.editingId, tempInput);
+                            } else if (modalConfig.onConfirm) {
+                                modalConfig.onConfirm();
+                            }
+                        }}
+                    />
+
                      {/* Toast Notification */}
                     {toast && (
                         <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-xl border backdrop-blur-md transition-all animate-fade-in-down ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
@@ -422,7 +508,20 @@ Each object in the array represents a segment and must follow this structure:
                             <button onClick={handleSwitchToHistory} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`} title="Saved Archives">History</button>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button variant="secondary" onClick={() => { if(confirm('Clear all text?')) onSegmentsChange([]) }} size="sm" className="flex-1 sm:flex-none" title="Clear all script text">Clear</Button>
+                            <Button variant="secondary" onClick={() => { 
+                                setModalConfig({
+                                    isOpen: true, 
+                                    title: "Clear Script", 
+                                    message: "Clear all text?", 
+                                    type: "danger", 
+                                    confirmText: "Clear",
+                                    onConfirm: () => {
+                                        onSegmentsChange([]);
+                                        setRawText('');
+                                        setCurrentScriptId(null);
+                                    }
+                                })
+                            }} size="sm" className="flex-1 sm:flex-none">Clear</Button>
                             <Button onClick={handleStartWithSync} className="flex-1 sm:flex-none" icon={<svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>} title="Start Teleprompter">Start</Button>
                         </div>
                     </div>
@@ -453,18 +552,15 @@ Each object in the array represents a segment and must follow this structure:
                                             </Button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between px-1">
-                                        <Button variant="secondary" size="sm" className="h-8 text-[10px]" onClick={handleSaveToHistory} title="Save to History">Save to Archive</Button>
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
-                                            <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
-                                            <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSave} title="Save text changes">Save & Sync</Button>
-                                        </div>
+                                    <div className="flex items-center justify-end gap-2 px-1">
+                                        <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
+                                        <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
+                                        <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSaveAndSync} title="Save text changes">Save & Sync</Button>
                                     </div>
                                 </div>
                                 <textarea ref={textareaRef} className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded-lg resize-none border border-zinc-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-base leading-relaxed overflow-y-auto select-text" 
                                 placeholder="Type or paste your text here..." value={rawText} onChange={(e) => setRawText(e.target.value)} dir="auto" title="Editor Area: Type your script here" onContextMenu={(e) => e.stopPropagation()} />
-                                <p className="text-[10px] text-zinc-500 text-center">Coloring is available in the "Tune" tab.</p>
+                                <p className="text-[10px] text-zinc-500 text-center">Changes are auto-saved to History when synced.</p>
                             </div>
                         )}
 
@@ -520,14 +616,34 @@ Each object in the array represents a segment and must follow this structure:
                                 ) : (
                                     <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
                                         {savedScripts.map((script) => (
-                                            <div key={script.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
-                                                <div className="flex-1">
-                                                    <h3 className="font-medium text-zinc-200">{script.title}</h3>
-                                                    <span className="text-[10px] text-zinc-500">{new Date(script.date).toLocaleDateString()}</span>
+                                            <div key={script.id} className={`bg-zinc-950 border rounded-lg p-3 hover:border-zinc-600 transition-colors flex items-center justify-between group ${currentScriptId === script.id ? 'border-indigo-500/50 bg-indigo-500/5' : 'border-zinc-800'}`}>
+                                                <div className="flex-1 min-w-0 mr-4 cursor-pointer" onClick={() => handleLoadFromHistory(script)}>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="font-medium text-zinc-200 truncate group-hover:text-white transition-colors">{script.title}</h3>
+                                                        {currentScriptId === script.id && <span className="text-[9px] uppercase bg-indigo-600 px-1.5 rounded text-white font-bold tracking-wider">Active</span>}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[10px] text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded">{new Date(script.date).toLocaleDateString()}</span>
+                                                        <span className="text-[10px] text-zinc-600">{script.segments.length} lines</span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => handleLoadFromHistory(script)} className="text-indigo-400 text-xs">Load</button>
-                                                    <button onClick={(e) => handleDeleteFromHistory(script.id, e)} className="text-red-400 text-xs">Delete</button>
+                                                <div className="flex items-center gap-1">
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            setTempInput(script.title);
+                                                            setModalConfig({
+                                                                isOpen: true, title: "Rename Script", isInput: true, confirmText: "Save", editingId: script.id
+                                                            });
+                                                        }}
+                                                        className="p-2 text-zinc-600 hover:text-zinc-300 rounded-lg transition-colors"
+                                                        title="Rename"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </button>
+                                                    <button onClick={() => handleLoadFromHistory(script)} className="p-2 text-indigo-400 hover:bg-indigo-900/20 rounded-lg transition-colors" title="Load">Load</button>
+                                                    <button onClick={(e) => handleDeleteFromHistory(script.id, e)} className="p-2 text-zinc-600 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors" title="Delete">
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                    </button>
                                                 </div>
                                             </div>
                                         ))}
@@ -556,7 +672,18 @@ Each object in the array represents a segment and must follow this structure:
             const [isDragging, setIsDragging] = React.useState(false);
             const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
 
-            const [config, setConfig] = React.useState({ fontSize: 54, isMirrored: false, guideOpacity: 0.2, showTimer: true, videoFilter: 'none' });
+            const [config, setConfig] = React.useState({ 
+                fontSize: 54, 
+                isMirrored: false, 
+                overlayColor: '#000000',
+                guideOpacity: 0.2, 
+                showTimer: true, 
+                videoFilter: 'none',
+                videoScale: 1.0,
+                brightness: 1.0,
+                contrast: 1.0,
+                saturation: 1.0
+            });
             
             const containerRef = React.useRef(null);
             const requestRef = React.useRef();
@@ -692,17 +819,9 @@ Each object in the array represents a segment and must follow this structure:
                 chunksRef.current = [];
                 const stream = videoRef.current.srcObject;
                 try {
-                    const mimeTypes = [
-                        'video/mp4; codecs=avc1,opus',
-                        'video/mp4',
-                        'video/webm; codecs=h264,opus', 
-                        'video/webm; codecs=vp9,opus',
-                        'video/webm'
-                    ];
+                    const mimeTypes = ['video/mp4; codecs=avc1,opus', 'video/mp4', 'video/webm; codecs=h264,opus', 'video/webm'];
                     let selectedType = '';
-                    for (const t of mimeTypes) { 
-                        if (MediaRecorder.isTypeSupported(t)) { selectedType = t; break; } 
-                    }
+                    for (const t of mimeTypes) { if (MediaRecorder.isTypeSupported(t)) { selectedType = t; break; } }
                     if (!selectedType) selectedType = 'video/webm';
                     
                     const recorder = new MediaRecorder(stream, { mimeType: selectedType, videoBitsPerSecond: 5000000 });
@@ -724,7 +843,7 @@ Each object in the array represents a segment and must follow this structure:
                     recorder.start(1000);
                     setIsRecording(true);
                     mediaRecorderRef.current = recorder;
-                } catch(e) { alert("Recording failed: " + e.message); }
+                } catch(e) { alert("Recording failed"); }
             };
 
             const stopRecording = () => {
@@ -841,12 +960,20 @@ Each object in the array represents a segment and must follow this structure:
 
             const hasCameraControls = cameraCapabilities && (cameraCapabilities.torch || cameraCapabilities.zoom || cameraCapabilities.exposureCompensation);
 
+            // CSS Filters string
+            const videoFilters = [
+                config.videoFilter !== 'none' ? FILTER_STYLES[config.videoFilter].filter : '',
+                `brightness(${config.brightness})`,
+                `contrast(${config.contrast})`,
+                `saturate(${config.saturation})`
+            ].filter(Boolean).join(' ');
+
             return (
                 <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-500 ${isCameraActive ? 'bg-black/30' : 'bg-black'} text-white`} onDoubleClick={handleDoubleClick} title="Double-click empty area for Fullscreen">
                     <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`} 
                         style={{ 
-                            transform: 'scaleX(-1)', 
-                            ...FILTER_STYLES[config.videoFilter] 
+                            transform: `scaleX(-1) scale(${config.videoScale})`, 
+                            filter: videoFilters
                         }} 
                     />
                     
@@ -918,8 +1045,40 @@ Each object in the array represents a segment and must follow this structure:
                             </div>
 
                              <div className="space-y-3 pt-2 border-t border-zinc-800">
-                                <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Video Look</h3>
-                                 <div className="grid grid-cols-2 gap-2">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Advanced Video</h3>
+                                    <button onClick={() => setConfig(c => ({...c, videoScale: 1, brightness: 1, contrast: 1, saturation: 1}))} className="text-xs text-indigo-400 hover:text-white" title="Reset video settings">Reset</button>
+                                </div>
+                                
+                                <div className="flex flex-col gap-1">
+                                     <div className="flex justify-between text-zinc-400">
+                                         <span>Scale (Zoom)</span>
+                                         <span>{config.videoScale.toFixed(2)}x</span>
+                                     </div>
+                                     <input type="range" min="0.5" max="2.0" step="0.05" value={config.videoScale} onChange={(e) => setConfig({...config, videoScale: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                     <div className="flex justify-between text-zinc-400">
+                                         <span>Brightness</span>
+                                         <span>{Math.round(config.brightness * 100)}%</span>
+                                     </div>
+                                     <input type="range" min="0.5" max="2.0" step="0.1" value={config.brightness} onChange={(e) => setConfig({...config, brightness: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                     <div className="flex justify-between text-zinc-400">
+                                         <span>Contrast</span>
+                                         <span>{Math.round(config.contrast * 100)}%</span>
+                                     </div>
+                                     <input type="range" min="0.5" max="2.0" step="0.1" value={config.contrast} onChange={(e) => setConfig({...config, contrast: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                     <div className="flex justify-between text-zinc-400">
+                                         <span>Saturation</span>
+                                         <span>{Math.round(config.saturation * 100)}%</span>
+                                     </div>
+                                     <input type="range" min="0" max="2.0" step="0.1" value={config.saturation} onChange={(e) => setConfig({...config, saturation: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                                </div>
+                                 <div className="grid grid-cols-2 gap-2 mt-2">
                                     {['none', 'warm', 'cool', 'bw'].map(filter => (
                                         <button key={filter} onClick={() => setConfig(c => ({...c, videoFilter: filter}))} className={`py-1.5 px-2 rounded border transition-all capitalize ${config.videoFilter === filter ? 'bg-indigo-600/20 border-indigo-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}>
                                             {filter}
