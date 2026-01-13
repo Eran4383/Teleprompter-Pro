@@ -11,6 +11,14 @@ export interface ScriptSegment {
     duration: number; // Duration in milliseconds to speak this segment
 }
 
+export interface SavedScript {
+    id: string;
+    title: string;
+    date: string; // ISO string
+    segments: ScriptSegment[];
+    rawText: string;
+}
+
 export enum AppMode {
     EDITOR = 'EDITOR',
     PROMPTER = 'PROMPTER',

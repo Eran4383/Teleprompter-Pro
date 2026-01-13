@@ -1,6 +1,6 @@
 import { ScriptSegment } from "./types";
 
-export const APP_VERSION = "v1.2.12";
+export const APP_VERSION = "v1.2.15";
 
 const createSegment = (id: string, text: string, duration: number): ScriptSegment => ({
     id,
@@ -11,9 +11,9 @@ const createSegment = (id: string, text: string, duration: number): ScriptSegmen
 
 export const DEFAULT_SCRIPT: ScriptSegment[] = [
     createSegment('1', "Welcome to Teleprompter PRO.", 2000),
-    createSegment('2', "This is a next-generation teleprompter.", 3000),
-    createSegment('3', "Tap words in Tune mode to color them.", 3500),
-    createSegment('4', "Scroll manually to adjust your position.", 4000),
+    createSegment('2', "This version includes optimized MP4 recording.", 3000),
+    createSegment('3', "History archives are now fully synchronized.", 3500),
+    createSegment('4', "Tap 'Start' to begin prompting.", 2000),
 ];
 
 export const MIN_DURATION = 100; // 100ms

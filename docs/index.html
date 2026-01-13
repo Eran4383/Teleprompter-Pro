@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.12 - Documentation & Demo</title>
+    <title>Teleprompter PRO v1.2.15 - Documentation & Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- React 18 -->
@@ -25,7 +25,7 @@
 
     <script type="text/babel">
         // --- Constants ---
-        const APP_VERSION = "v1.2.12";
+        const APP_VERSION = "v1.2.15";
         const AppMode = {
             EDITOR: 'EDITOR',
             PROMPTER: 'PROMPTER'
@@ -41,8 +41,8 @@
         
         const DEFAULT_SCRIPT = [
             { id: '1', text: "Welcome to Teleprompter PRO.", words: [{text:"Welcome"},{text:"to"},{text:"Teleprompter"},{text:"PRO."}], duration: 2000 },
-            { id: '2', text: "Tap words to color them.", words: [{text:"Tap"},{text:"words"},{text:"to"},{text:"color", color:'text-yellow-400'},{text:"them."}], duration: 3000 },
-            { id: '3', text: "Scroll logic has been improved.", words: [{text:"Scroll"},{text:"logic"},{text:"has"},{text:"been"},{text:"improved."}], duration: 2500 }
+            { id: '2', text: "This version includes optimized MP4 recording.", words: [{text:"This"},{text:"version"},{text:"includes"},{text:"optimized"},{text:"MP4"},{text:"recording."}], duration: 3000 },
+            { id: '3', text: "History archives are now fully synchronized.", words: [{text:"History"},{text:"archives"},{text:"are"},{text:"now"},{text:"fully"},{text:"synchronized."}], duration: 3500 }
         ];
         
         const FILTER_STYLES = {
@@ -144,9 +144,36 @@ Each object in the array represents a segment and must follow this structure:
             const [rawText, setRawText] = React.useState(segments.map(s => s.text).join('\n'));
             const [isProcessing, setIsProcessing] = React.useState(false);
             const [topicInput, setTopicInput] = React.useState('');
+            const [toast, setToast] = React.useState(null);
+            const [savedScripts, setSavedScripts] = React.useState([]);
+            
             const textareaRef = React.useRef(null);
             const tuneContainerRef = React.useRef(null);
             const fileInputRef = React.useRef(null);
+
+            const loadHistoryFromStorage = () => {
+                const stored = localStorage.getItem('teleprompter_history');
+                if (stored) {
+                    try { setSavedScripts(JSON.parse(stored)); } catch (e) {}
+                }
+            };
+
+             React.useEffect(() => {
+                loadHistoryFromStorage();
+            }, []);
+
+            // Sync raw text when segments change externally
+            React.useEffect(() => {
+                const newText = segments.map(s => s.text).join('\n');
+                if (activeTab !== 'write') {
+                    setRawText(newText);
+                }
+            }, [segments, activeTab]);
+
+            const showToast = (msg, type = 'success') => {
+                setToast({ msg, type });
+                setTimeout(() => setToast(null), 3000);
+            };
 
             const syncTextToSegments = () => {
                 const lines = rawText.split('\n').filter(line => line.trim() !== '');
@@ -174,6 +201,11 @@ Each object in the array represents a segment and must follow this structure:
             const handleSwitchToWrite = () => {
                 setRawText(segments.map(s => s.text).join('\n'));
                 setActiveTab('write');
+            };
+            
+            const handleSwitchToHistory = () => {
+                loadHistoryFromStorage();
+                setActiveTab('history');
             };
 
             const handleSave = () => {
@@ -203,6 +235,49 @@ Each object in the array represents a segment and must follow this structure:
                     syncTextToSegments();
                 }
                 onStartPrompt();
+            };
+
+            // History
+            const handleSaveToHistory = () => {
+                let currentSegments = segments;
+                if (activeTab === 'write') currentSegments = syncTextToSegments();
+                if (currentSegments.length === 0) { showToast("Cannot save empty script.", "error"); return; }
+                
+                const title = prompt("Enter a title for this script:", "Script " + new Date().toLocaleString());
+                if (!title) return;
+                
+                const newScript = {
+                    id: Date.now().toString(),
+                    title,
+                    date: new Date().toISOString(),
+                    segments: currentSegments,
+                    rawText: currentSegments.map(s => s.text).join('\n')
+                };
+                const updatedHistory = [newScript, ...savedScripts];
+                setSavedScripts(updatedHistory);
+                localStorage.setItem('teleprompter_history', JSON.stringify(updatedHistory));
+                showToast("Script saved to Archive!");
+            };
+
+            const handleLoadFromHistory = (script) => {
+                if (confirm(`Load "${script.title}"? Current text will be replaced.`)) {
+                    onSegmentsChange(script.segments);
+                    setRawText(script.rawText);
+                    setTimeout(() => {
+                        setActiveTab('write');
+                        showToast("Script loaded.");
+                    }, 50);
+                }
+            };
+
+            const handleDeleteFromHistory = (id, e) => {
+                e.stopPropagation();
+                if (confirm("Delete this saved script?")) {
+                    const updated = savedScripts.filter(s => s.id !== id);
+                    setSavedScripts(updated);
+                    localStorage.setItem('teleprompter_history', JSON.stringify(updated));
+                    showToast("Script deleted.");
+                }
             };
 
             const handleAIOptimize = async () => {
@@ -241,8 +316,8 @@ Each object in the array represents a segment and must follow this structure:
             const handleCopySystemPrompt = async () => {
                 try {
                     await navigator.clipboard.writeText(AI_SYSTEM_PROMPT);
-                    alert("System Prompt copied!\nPaste into Gemini/ChatGPT to get compatible JSON.");
-                } catch (err) { alert("Copy failed."); }
+                    showToast("AI Prompt copied! Paste into Gemini/ChatGPT.");
+                } catch (err) { showToast("Copy failed.", "error"); }
             };
 
             const handleExportJSON = () => {
@@ -273,10 +348,10 @@ Each object in the array represents a segment and must follow this structure:
                             }));
                             onSegmentsChange(imported);
                             setRawText(imported.map(s => s.text).join('\n'));
-                            alert(`Imported ${imported.length} segments.`);
+                            showToast(`Imported ${imported.length} segments.`);
                             setActiveTab('tune');
-                        } else { alert("Invalid JSON array."); }
-                    } catch (err) { alert("Failed to parse JSON."); }
+                        } else { showToast("Invalid JSON array.", "error"); }
+                    } catch (err) { showToast("Failed to parse JSON.", "error"); }
                     if (fileInputRef.current) fileInputRef.current.value = "";
                 };
                 reader.readAsText(file);
@@ -329,11 +404,22 @@ Each object in the array represents a segment and must follow this structure:
             };
 
             return (
-                <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
+                <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 relative">
+                     {/* Toast Notification */}
+                    {toast && (
+                        <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-xl border backdrop-blur-md transition-all animate-fade-in-down ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                            <span className="text-xs font-medium flex items-center gap-2">
+                                {toast.type === 'success' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
+                                {toast.msg}
+                            </span>
+                        </div>
+                    )}
+
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-zinc-950 border-b border-zinc-800 gap-3">
                         <div className="flex space-x-2">
                             <button onClick={handleSwitchToWrite} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'write' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`} title="Edit raw text">Write</button>
-                            <button onClick={handleSwitchToTune} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'tune' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`} title="Color words and adjust timing">Tune (Color & Time)</button>
+                            <button onClick={handleSwitchToTune} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'tune' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`} title="Color words and adjust timing">Tune</button>
+                            <button onClick={handleSwitchToHistory} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`} title="Saved Archives">History</button>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button variant="secondary" onClick={() => { if(confirm('Clear all text?')) onSegmentsChange([]) }} size="sm" className="flex-1 sm:flex-none" title="Clear all script text">Clear</Button>
@@ -356,24 +442,24 @@ Each object in the array represents a segment and must follow this structure:
                                         <div className="flex items-center gap-2">
                                             <input type="file" accept=".json" ref={fileInputRef} style={{display:'none'}} onChange={handleImportJSON} />
                                             <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleCopySystemPrompt} title="Copy Prompt for Gemini/ChatGPT">
-                                                <svg className="w-4 h-4 mr-1 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                                                 Prompt
                                             </Button>
                                             <div className="w-px h-6 bg-zinc-800 mx-1"></div>
                                             <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => fileInputRef.current.click()} title="Import JSON">
-                                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                 Import
                                             </Button>
                                             <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleExportJSON} title="Export JSON">
-                                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                                 Export
                                             </Button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-end gap-2 px-1">
-                                        <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
-                                        <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
-                                        <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSave} title="Save text changes">Save & Sync</Button>
+                                    <div className="flex items-center justify-between px-1">
+                                        <Button variant="secondary" size="sm" className="h-8 text-[10px]" onClick={handleSaveToHistory} title="Save to History">Save to Archive</Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
+                                            <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
+                                            <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSave} title="Save text changes">Save & Sync</Button>
+                                        </div>
                                     </div>
                                 </div>
                                 <textarea ref={textareaRef} className="flex-1 w-full bg-zinc-950 text-zinc-100 p-4 rounded-lg resize-none border border-zinc-800 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono text-base leading-relaxed overflow-y-auto select-text" 
@@ -418,6 +504,35 @@ Each object in the array represents a segment and must follow this structure:
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+                        
+                        {activeTab === 'history' && (
+                            <div className="flex flex-col h-full overflow-hidden p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Saved Scripts Archive</h2>
+                                    <button onClick={loadHistoryFromStorage} className="text-xs text-zinc-500 hover:text-white">Refresh</button>
+                                </div>
+                                {savedScripts.length === 0 ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-zinc-600">
+                                        <p>No saved scripts.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
+                                        {savedScripts.map((script) => (
+                                            <div key={script.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
+                                                <div className="flex-1">
+                                                    <h3 className="font-medium text-zinc-200">{script.title}</h3>
+                                                    <span className="text-[10px] text-zinc-500">{new Date(script.date).toLocaleDateString()}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => handleLoadFromHistory(script)} className="text-indigo-400 text-xs">Load</button>
+                                                    <button onClick={(e) => handleDeleteFromHistory(script.id, e)} className="text-red-400 text-xs">Delete</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -577,24 +692,39 @@ Each object in the array represents a segment and must follow this structure:
                 chunksRef.current = [];
                 const stream = videoRef.current.srcObject;
                 try {
-                    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
-                    const recorder = new MediaRecorder(stream, { mimeType });
+                    const mimeTypes = [
+                        'video/mp4; codecs=avc1,opus',
+                        'video/mp4',
+                        'video/webm; codecs=h264,opus', 
+                        'video/webm; codecs=vp9,opus',
+                        'video/webm'
+                    ];
+                    let selectedType = '';
+                    for (const t of mimeTypes) { 
+                        if (MediaRecorder.isTypeSupported(t)) { selectedType = t; break; } 
+                    }
+                    if (!selectedType) selectedType = 'video/webm';
+                    
+                    const recorder = new MediaRecorder(stream, { mimeType: selectedType, videoBitsPerSecond: 5000000 });
                     recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
                     recorder.onstop = () => {
-                        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                        const isMp4 = selectedType.includes('mp4');
+                        const ext = isMp4 ? 'mp4' : 'webm';
+                        const type = selectedType.split(';')[0];
+                        const blob = new Blob(chunksRef.current, { type });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.style.display = 'none';
                         a.href = url;
-                        a.download = `recording-${Date.now()}.webm`;
+                        a.download = `recording-${Date.now()}.${ext}`;
                         document.body.appendChild(a);
                         a.click();
                         setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
                     };
-                    recorder.start();
+                    recorder.start(1000);
                     setIsRecording(true);
                     mediaRecorderRef.current = recorder;
-                } catch(e) { alert("Recording failed"); }
+                } catch(e) { alert("Recording failed: " + e.message); }
             };
 
             const stopRecording = () => {

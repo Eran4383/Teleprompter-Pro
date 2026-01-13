@@ -213,37 +213,65 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         const stream = videoRef.current.srcObject as MediaStream;
         
         try {
-            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-                ? 'video/webm;codecs=vp9' 
-                : 'video/webm';
+            // Aggressive priority list for Chrome MP4 support
+            // Chrome ~109+ supports video/mp4 with avc1
+            const mimeTypes = [
+                'video/mp4; codecs=avc1,opus',
+                'video/mp4',
+                'video/webm; codecs=h264,opus', // H.264 inside WebM
+                'video/webm; codecs=vp9,opus',
+                'video/webm'
+            ];
 
-            const recorder = new MediaRecorder(stream, { mimeType });
+            let selectedMimeType = '';
+            for (const type of mimeTypes) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    selectedMimeType = type;
+                    break;
+                }
+            }
+
+            // Fallback if loop fails (rare)
+            if (!selectedMimeType) selectedMimeType = 'video/webm';
+
+            console.log(`Recording using MIME type: ${selectedMimeType}`);
+            
+            const recorder = new MediaRecorder(stream, { 
+                mimeType: selectedMimeType,
+                videoBitsPerSecond: 5000000 // 5 Mbps for quality
+            });
             
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) chunksRef.current.push(e.data);
             };
             
             recorder.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                // Determine true extension based on what was actually supported
+                const isMp4 = selectedMimeType.includes('mp4');
+                const type = selectedMimeType.split(';')[0]; // strip codecs for Blob type
+                const ext = isMp4 ? 'mp4' : 'webm';
+                
+                const blob = new Blob(chunksRef.current, { type });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = `teleprompter-recording-${new Date().toISOString()}.webm`;
+                a.download = `teleprompter-${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.${ext}`;
                 document.body.appendChild(a);
                 a.click();
+                
                 setTimeout(() => {
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
                 }, 100);
             };
 
-            recorder.start();
+            recorder.start(1000); // Collect chunks every second to avoid memory spikes
             setIsRecording(true);
             mediaRecorderRef.current = recorder;
         } catch (e) {
             console.error("Recorder error:", e);
-            alert("Failed to start recording.");
+            alert("Failed to start recording. Browser might not support the requested video format.");
         }
     };
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ScriptSegment, SegmentWord } from '../types';
+import { ScriptSegment, SavedScript } from '../types';
 import { Button } from './Button';
 import { generateScriptFromTopic, optimizeScript } from '../services/geminiService';
 
@@ -45,13 +45,52 @@ Each object in the array represents a segment and must follow this structure:
 4. Ensure the JSON is valid.`;
 
 export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegmentsChange, onStartPrompt }) => {
-    const [activeTab, setActiveTab] = useState<'write' | 'tune'>('write');
+    const [activeTab, setActiveTab] = useState<'write' | 'tune' | 'history'>('write');
     const [rawText, setRawText] = useState(segments.map(s => s.text).join('\n'));
     const [isProcessing, setIsProcessing] = useState(false);
     const [topicInput, setTopicInput] = useState('');
+    const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
+    const [savedScripts, setSavedScripts] = useState<SavedScript[]>([]);
+    
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const tuneContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Sync raw text when segments change externally (e.g. AI or Load History)
+    useEffect(() => {
+        const newText = segments.map(s => s.text).join('\n');
+        // Only update if significantly different to avoid cursor jumping if we were typing
+        // But for "Load" operations, we must update.
+        // Simple heuristic: If the line count is different or length differs significantly, update.
+        // For a proper 2-way binding we usually control the input fully.
+        if (activeTab !== 'write') {
+             setRawText(newText);
+        }
+    }, [segments, activeTab]);
+
+    const loadHistoryFromStorage = () => {
+        const stored = localStorage.getItem('teleprompter_history');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    setSavedScripts(parsed);
+                }
+            } catch (e) {
+                console.error("Failed to load history", e);
+            }
+        }
+    };
+
+    // Load history on mount
+    useEffect(() => {
+        loadHistoryFromStorage();
+    }, []);
+
+    const showToast = (msg: string, type: 'success'|'error' = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     // Sync raw text from Write tab to structured Segments
     const syncTextToSegments = () => {
@@ -78,8 +117,14 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
     };
 
     const handleSwitchToWrite = () => {
+        // We update rawText from segments just in case modifications happened elsewhere
         setRawText(segments.map(s => s.text).join('\n'));
         setActiveTab('write');
+    };
+
+    const handleSwitchToHistory = () => {
+        loadHistoryFromStorage(); // Force refresh from LS
+        setActiveTab('history');
     };
 
     const handleSave = () => {
@@ -111,22 +156,72 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         onStartPrompt();
     };
 
+    // --- History / Archive Logic ---
+
+    const handleSaveToHistory = () => {
+        // Ensure we capture what is currently in the editor
+        let currentSegments = segments;
+        if (activeTab === 'write') {
+            currentSegments = syncTextToSegments();
+        }
+
+        if (currentSegments.length === 0) {
+            showToast("Cannot save empty script.", "error");
+            return;
+        }
+
+        const title = prompt("Enter a title for this script:", "Script " + new Date().toLocaleString());
+        if (!title) return;
+
+        const newScript: SavedScript = {
+            id: Date.now().toString(),
+            title,
+            date: new Date().toISOString(),
+            segments: currentSegments,
+            rawText: currentSegments.map(s => s.text).join('\n')
+        };
+
+        const updatedHistory = [newScript, ...savedScripts];
+        setSavedScripts(updatedHistory);
+        localStorage.setItem('teleprompter_history', JSON.stringify(updatedHistory));
+        showToast("Script saved to Archive!");
+    };
+
+    const handleLoadFromHistory = (script: SavedScript) => {
+        if (confirm(`Load "${script.title}"? Current text will be replaced.`)) {
+            onSegmentsChange(script.segments);
+            setRawText(script.rawText);
+            
+            // Short timeout to allow state to settle before switching tab
+            setTimeout(() => {
+                setActiveTab('write');
+                showToast("Script loaded.");
+            }, 50);
+        }
+    };
+
+    const handleDeleteFromHistory = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (confirm("Permanently delete this script?")) {
+            const updated = savedScripts.filter(s => s.id !== id);
+            setSavedScripts(updated);
+            localStorage.setItem('teleprompter_history', JSON.stringify(updated));
+            showToast("Script deleted.");
+        }
+    };
+
     // --- Import / Export / Prompt Logic ---
 
     const handleCopySystemPrompt = async () => {
         try {
             await navigator.clipboard.writeText(AI_SYSTEM_PROMPT);
-            alert("System Prompt copied to clipboard!\n\nPaste this into Gemini/ChatGPT to generate a compatible JSON script.");
+            showToast("AI Prompt copied! Paste into Gemini/ChatGPT.");
         } catch (err) {
-            alert("Failed to copy prompt.");
+            showToast("Failed to copy prompt.", "error");
         }
     };
 
     const handleExportJSON = () => {
-        // We export the current segments. If user is in Write tab, we might want to sync first?
-        // Let's assume export captures the *current state* of segments.
-        // If the user typed in Write but didn't save, segments is outdated.
-        // So we sync first if in write mode.
         let dataToExport = segments;
         if (activeTab === 'write') {
             dataToExport = syncTextToSegments();
@@ -152,7 +247,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             try {
                 const json = JSON.parse(e.target?.result as string);
                 if (Array.isArray(json)) {
-                    // Basic validation and hydration
                     const importedSegments: ScriptSegment[] = json.map((item: any, idx: number) => ({
                         id: item.id || `imported-${Date.now()}-${idx}`,
                         text: item.text || "",
@@ -162,17 +256,15 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                     
                     onSegmentsChange(importedSegments);
                     setRawText(importedSegments.map(s => s.text).join('\n'));
-                    alert(`Successfully imported ${importedSegments.length} segments.`);
-                    // Switch to tune to see the result effectively
+                    showToast(`Imported ${importedSegments.length} segments.`);
                     setActiveTab('tune');
                 } else {
-                    alert("Invalid JSON format: Expected an array.");
+                    showToast("Invalid JSON: Expected an array.", "error");
                 }
             } catch (err) {
                 console.error(err);
-                alert("Failed to parse JSON file.");
+                showToast("Failed to parse JSON file.", "error");
             }
-            // Reset input so same file can be selected again
             if (fileInputRef.current) fileInputRef.current.value = "";
         };
         reader.readAsText(fileObj);
@@ -261,7 +353,18 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
     };
 
     return (
-        <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
+        <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 relative">
+            
+            {/* Toast Notification */}
+            {toast && (
+                <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-xl border backdrop-blur-md transition-all animate-fade-in-down ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                    <span className="text-xs font-medium flex items-center gap-2">
+                        {toast.type === 'success' && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
+                        {toast.msg}
+                    </span>
+                </div>
+            )}
+
             {/* Main Tabs and Launch */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-zinc-950 border-b border-zinc-800 gap-3">
                 <div className="flex space-x-2">
@@ -277,7 +380,14 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'tune' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`}
                         title="Color words and adjust timing"
                     >
-                        Tune (Color & Time)
+                        Tune
+                    </button>
+                    <button 
+                        onClick={handleSwitchToHistory}
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-zinc-800 text-white shadow-inner' : 'text-zinc-500 hover:text-white'}`}
+                        title="Saved scripts archive"
+                    >
+                        History
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -332,29 +442,39 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                     />
                                     
                                     <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleCopySystemPrompt} title="Copy Prompt for Gemini/ChatGPT">
-                                        <svg className="w-4 h-4 mr-1 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                                        Copy AI Prompt
+                                        Prompt
                                     </Button>
 
                                     <div className="w-px h-6 bg-zinc-800 mx-1"></div>
 
                                     <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => fileInputRef.current?.click()} title="Import JSON">
-                                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                         Import
                                     </Button>
 
                                     <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleExportJSON} title="Export JSON">
-                                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                         Export
                                     </Button>
                                 </div>
                             </div>
 
                             {/* Row 2: Basic Text Actions */}
-                            <div className="flex items-center justify-end gap-2 px-1">
-                                <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
-                                <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
-                                <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSave} title="Save text changes">Save & Sync</Button>
+                            <div className="flex items-center justify-between px-1">
+                                <Button 
+                                    variant="secondary" 
+                                    size="sm" 
+                                    className="h-8 text-[10px]" 
+                                    onClick={handleSaveToHistory} 
+                                    icon={<svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>}
+                                    title="Save to internal history (Archive)"
+                                >
+                                    Save to Archive
+                                </Button>
+
+                                <div className="flex items-center gap-2">
+                                    <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
+                                    <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
+                                    <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSave} title="Save text changes">Save & Sync</Button>
+                                </div>
                             </div>
                         </div>
 
@@ -432,6 +552,52 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'history' && (
+                    <div className="flex flex-col h-full overflow-hidden p-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Saved Scripts Archive</h2>
+                            <button onClick={loadHistoryFromStorage} className="text-xs text-zinc-500 hover:text-white" title="Refresh list">Refresh</button>
+                        </div>
+                        {savedScripts.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-zinc-600">
+                                <svg className="w-12 h-12 mb-2 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                                <p>No saved scripts yet.</p>
+                                <p className="text-xs mt-1">Go to "Write" tab to save scripts here.</p>
+                            </div>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
+                                {savedScripts.map((script) => (
+                                    <div key={script.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 hover:border-zinc-600 transition-colors flex items-center justify-between group">
+                                        <div className="flex-1 min-w-0 mr-4 cursor-pointer" onClick={() => handleLoadFromHistory(script)}>
+                                            <h3 className="font-medium text-zinc-200 truncate group-hover:text-white transition-colors">{script.title}</h3>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-[10px] text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded">{new Date(script.date).toLocaleDateString()}</span>
+                                                <span className="text-[10px] text-zinc-600">{script.segments.length} lines</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => handleLoadFromHistory(script)}
+                                                className="p-2 text-indigo-400 hover:bg-indigo-900/20 rounded-lg transition-colors"
+                                                title="Load this script"
+                                            >
+                                                Load
+                                            </button>
+                                            <button 
+                                                onClick={(e) => handleDeleteFromHistory(script.id, e)}
+                                                className="p-2 text-zinc-600 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                                                title="Delete"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
