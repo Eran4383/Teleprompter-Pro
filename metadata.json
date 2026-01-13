@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.9 - Enhanced settings menu (opacity, video filters) and responsive mobile toolbar.",
+  "description": "Teleprompter PRO v1.2.10 - Critical fix for standalone build (App not defined error).",
   "requestFramePermissions": [
     "camera",
     "microphone"
