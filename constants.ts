@@ -1,6 +1,6 @@
 import { ScriptSegment } from "./types";
 
-export const APP_VERSION = "v1.2.11";
+export const APP_VERSION = "v1.2.12";
 
 const createSegment = (id: string, text: string, duration: number): ScriptSegment => ({
     id,

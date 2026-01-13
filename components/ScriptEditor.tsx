@@ -19,6 +19,31 @@ const COLOR_PALETTE = [
     { class: 'text-purple-400', label: 'Purple', bg: 'bg-purple-400' },
 ];
 
+const AI_SYSTEM_PROMPT = `You are a script generator for a Teleprompter App.
+Please output a raw JSON Array (and nothing else).
+Each object in the array represents a segment and must follow this structure:
+
+[
+  {
+    "id": "unique_string_1",
+    "text": "The full sentence or phrase for this line.",
+    "duration": 3000,
+    "words": [
+      { "text": "The" },
+      { "text": "full" },
+      { "text": "sentence", "color": "text-yellow-400" },
+      { "text": "or" },
+      { "text": "phrase", "color": "text-red-500" }
+    ]
+  }
+]
+
+**Rules:**
+1. "duration" is in milliseconds. Estimate approx 300ms per word + 500ms for pauses.
+2. "words" is an array breaking down the "text".
+3. You can add "color" to specific words to highlight them. Use Tailwind classes: 'text-yellow-400', 'text-red-500', 'text-green-400', 'text-cyan-400', 'text-purple-400'.
+4. Ensure the JSON is valid.`;
+
 export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegmentsChange, onStartPrompt }) => {
     const [activeTab, setActiveTab] = useState<'write' | 'tune'>('write');
     const [rawText, setRawText] = useState(segments.map(s => s.text).join('\n'));
@@ -26,6 +51,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
     const [topicInput, setTopicInput] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const tuneContainerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync raw text from Write tab to structured Segments
     const syncTextToSegments = () => {
@@ -85,6 +111,76 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         onStartPrompt();
     };
 
+    // --- Import / Export / Prompt Logic ---
+
+    const handleCopySystemPrompt = async () => {
+        try {
+            await navigator.clipboard.writeText(AI_SYSTEM_PROMPT);
+            alert("System Prompt copied to clipboard!\n\nPaste this into Gemini/ChatGPT to generate a compatible JSON script.");
+        } catch (err) {
+            alert("Failed to copy prompt.");
+        }
+    };
+
+    const handleExportJSON = () => {
+        // We export the current segments. If user is in Write tab, we might want to sync first?
+        // Let's assume export captures the *current state* of segments.
+        // If the user typed in Write but didn't save, segments is outdated.
+        // So we sync first if in write mode.
+        let dataToExport = segments;
+        if (activeTab === 'write') {
+            dataToExport = syncTextToSegments();
+        }
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `teleprompter_script_${Date.now()}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    };
+
+    const handleImportJSON = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const fileObj = event.target.files && event.target.files[0];
+        if (!fileObj) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const json = JSON.parse(e.target?.result as string);
+                if (Array.isArray(json)) {
+                    // Basic validation and hydration
+                    const importedSegments: ScriptSegment[] = json.map((item: any, idx: number) => ({
+                        id: item.id || `imported-${Date.now()}-${idx}`,
+                        text: item.text || "",
+                        duration: typeof item.duration === 'number' ? item.duration : 2000,
+                        words: Array.isArray(item.words) ? item.words : (item.text || "").split(' ').map((w: string) => ({ text: w }))
+                    }));
+                    
+                    onSegmentsChange(importedSegments);
+                    setRawText(importedSegments.map(s => s.text).join('\n'));
+                    alert(`Successfully imported ${importedSegments.length} segments.`);
+                    // Switch to tune to see the result effectively
+                    setActiveTab('tune');
+                } else {
+                    alert("Invalid JSON format: Expected an array.");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Failed to parse JSON file.");
+            }
+            // Reset input so same file can be selected again
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        };
+        reader.readAsText(fileObj);
+    };
+
+
+    // --- AI Logic ---
+
     const handleAIOptimize = async () => {
         if (!rawText.trim()) return;
         setIsProcessing(true);
@@ -127,7 +223,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         }));
     };
 
-    // Apply color to the CURRENTLY SELECTED text in the Tune tab
     const applyColorToSelection = (colorClass: string) => {
         const selection = window.getSelection();
         if (!selection || selection.rangeCount === 0) return;
@@ -136,10 +231,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         
         const newSegments = segments.map(seg => {
             const newWords = seg.words.map((word, wIdx) => {
-                // Find the DOM element for this specific word
-                // We rely on the data attributes we render below
                 const el = document.querySelector(`[data-seg-id="${seg.id}"][data-word-idx="${wIdx}"]`);
-                
                 if (el && range.intersectsNode(el)) {
                     return { ...word, color: colorClass };
                 }
@@ -197,10 +289,13 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             <div className="flex-1 flex flex-col min-h-0">
                 {activeTab === 'write' && (
                     <div className="flex-1 flex flex-col p-3 sm:p-4 gap-3 min-h-0">
-                        {/* AI & Actions bar */}
+                        {/* File & Actions Bar */}
                         <div className="flex flex-col gap-2 shrink-0">
+                            
+                            {/* Row 1: AI & Import/Export */}
                             <div className="p-2 bg-zinc-950 rounded-lg border border-zinc-800 flex flex-col lg:flex-row gap-2">
-                                <div className="flex items-center gap-2 flex-1">
+                                {/* AI Section */}
+                                <div className="flex items-center gap-2 flex-1 border-r border-zinc-800 pr-2">
                                     <Button 
                                         variant="secondary" 
                                         size="sm" 
@@ -212,11 +307,11 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                     >
                                         AI Timing
                                     </Button>
-                                    <div className="flex items-center gap-1 flex-1">
+                                    <div className="flex items-center gap-1 flex-1 min-w-0">
                                         <input 
                                             type="text" 
                                             placeholder="Topic..."
-                                            className="flex-1 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-1.5 h-9 text-xs text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                            className="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-1.5 h-9 text-xs text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                             value={topicInput}
                                             onChange={(e) => setTopicInput(e.target.value)}
                                             dir="auto"
@@ -225,11 +320,41 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                         <Button size="sm" className="h-9" onClick={handleAIGenerate} isLoading={isProcessing} disabled={!topicInput.trim()} title="Generate script from topic">Gen</Button>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 lg:border-l lg:border-zinc-800 lg:pl-2">
-                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleSelectAll} title="Select all text">Select All</Button>
-                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
-                                    <Button variant="primary" size="sm" className="h-9 text-xs px-4" onClick={handleSave} title="Save text changes">Save</Button>
+
+                                {/* File Operations */}
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="file" 
+                                        accept=".json" 
+                                        ref={fileInputRef} 
+                                        style={{ display: 'none' }} 
+                                        onChange={handleImportJSON} 
+                                    />
+                                    
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleCopySystemPrompt} title="Copy Prompt for Gemini/ChatGPT">
+                                        <svg className="w-4 h-4 mr-1 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                        Copy AI Prompt
+                                    </Button>
+
+                                    <div className="w-px h-6 bg-zinc-800 mx-1"></div>
+
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => fileInputRef.current?.click()} title="Import JSON">
+                                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                        Import
+                                    </Button>
+
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handleExportJSON} title="Export JSON">
+                                        <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                        Export
+                                    </Button>
                                 </div>
+                            </div>
+
+                            {/* Row 2: Basic Text Actions */}
+                            <div className="flex items-center justify-end gap-2 px-1">
+                                <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll} title="Select all text">Select All</Button>
+                                <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste} title="Paste text from clipboard">Paste</Button>
+                                <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSave} title="Save text changes">Save & Sync</Button>
                             </div>
                         </div>
 
