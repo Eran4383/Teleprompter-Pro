@@ -21,6 +21,10 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     // Camera & Recording State
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
+    // Initialize as empty object to indicate "checked but maybe empty" vs null "not checked"
+    const [cameraCapabilities, setCameraCapabilities] = useState<MediaTrackCapabilities | null>(null);
+    const [cameraSettings, setCameraSettings] = useState<MediaTrackSettings | null>(null);
+    const [showCameraControls, setShowCameraControls] = useState(false);
     
     const [config, setConfig] = useState<PromptConfig>({
         fontSize: 54,
@@ -63,17 +67,35 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             }
             if (videoRef.current) videoRef.current.srcObject = null;
             setIsCameraActive(false);
+            setCameraCapabilities(null);
+            setShowCameraControls(false);
             if (isRecording) stopRecording();
         } else {
             // Start logic
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'user' }, 
+                // Request highest common resolution for better quality
+                const constraints: MediaStreamConstraints = { 
+                    video: { 
+                        facingMode: 'user',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }, 
                     audio: true 
-                });
+                };
+                
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     setIsCameraActive(true);
+                    
+                    const track = stream.getVideoTracks()[0];
+                    if (track.getCapabilities) {
+                        setCameraCapabilities(track.getCapabilities());
+                        setCameraSettings(track.getSettings());
+                    } else {
+                        // Browser doesn't support getCapabilities (e.g. Firefox/Safari sometimes)
+                        setCameraCapabilities({}); 
+                    }
                 }
             } catch (error) {
                 console.error("Camera access error:", error);
@@ -82,15 +104,27 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         }
     };
 
+    const applyCameraConstraint = async (constraint: string, value: any) => {
+        const stream = videoRef.current?.srcObject as MediaStream;
+        if (!stream) return;
+        const track = stream.getVideoTracks()[0];
+        
+        try {
+            await track.applyConstraints({
+                advanced: [{ [constraint]: value }]
+            });
+            setCameraSettings(track.getSettings());
+        } catch (e) {
+            console.error("Failed to apply constraint", e);
+        }
+    };
+
     const handleRecordClick = async () => {
         if (isRecording) {
             stopRecording();
         } else {
             if (!isCameraActive) {
-                // If camera is off, turn it on first
                 await toggleCamera();
-                // We don't auto-start recording immediately to allow user to frame themselves, 
-                // but the button is now active for the next click.
             } else {
                 startRecording();
             }
@@ -107,7 +141,12 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         const stream = videoRef.current.srcObject as MediaStream;
         
         try {
-            const recorder = new MediaRecorder(stream);
+            // Prefer high quality mime type
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+                ? 'video/webm;codecs=vp9' 
+                : 'video/webm';
+
+            const recorder = new MediaRecorder(stream, { mimeType });
             
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -119,7 +158,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = `promptai-recording-${new Date().toISOString()}.webm`;
+                a.download = `teleprompter-recording-${new Date().toISOString()}.webm`;
                 document.body.appendChild(a);
                 a.click();
                 setTimeout(() => {
@@ -176,9 +215,15 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         }
         
         if (activeIdx === -1) {
+            // At bottom
             if (container.scrollTop + container.clientHeight >= container.scrollHeight - 50) {
                 setElapsedTime(totalDuration);
                 return;
+            }
+            // At top (due to padding, this happens less, but reset to 0)
+            if (container.scrollTop < 100) {
+                 setElapsedTime(0);
+                 return;
             }
             activeIdx = segments.length - 1;
         }
@@ -228,10 +273,20 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 const segmentData = segmentTimeMap[activeSegmentIndex];
                 const segmentProgress = (elapsedTime - segmentData.start) / (segmentData.end - segmentData.start);
                 
+                // Calculate position to center the current word/segment
                 const targetScroll = elTop - (containerHeight / 2) + (elHeight / 2);
                 const scrollOffset = targetScroll + (elHeight * segmentProgress) - (elHeight/2);
 
                 containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
+            }
+        } else if (elapsedTime === 0) {
+            // Explicit reset to top logic
+            // We don't scroll to 0, because 0 is empty padding. We scroll to the first element's center pos.
+            const firstEl = segmentRefs.current[0];
+            if (firstEl && containerRef.current) {
+                 const containerHeight = containerRef.current.clientHeight;
+                 const targetScroll = firstEl.offsetTop - (containerHeight / 2) + (firstEl.clientHeight / 2);
+                 containerRef.current.scrollTo({ top: targetScroll, behavior: 'smooth' });
             }
         }
     }, [elapsedTime, segmentTimeMap, isPlaying]);
@@ -247,12 +302,9 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleStop = () => {
         setIsPlaying(false);
-        setElapsedTime(0);
+        setElapsedTime(0); // This triggers the useEffect to scroll to top
         isManualScroll.current = false;
         lastTimeRef.current = undefined;
-        if (containerRef.current) {
-            containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-        }
     };
 
     const handleUserInteraction = () => {
@@ -295,6 +347,9 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         return () => window.removeEventListener('keydown', handler);
     }, [isPlaying, onClose]);
 
+    // Check if we actually have any controls to show
+    const hasControls = cameraCapabilities && ((cameraCapabilities as any).torch || (cameraCapabilities as any).zoom || (cameraCapabilities as any).exposureCompensation);
+
     return (
         <div 
             className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-500 ${isCameraActive ? 'bg-black/30' : 'bg-black'} text-white`}
@@ -333,6 +388,17 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                     >
                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                     </button>
+                    
+                    {/* Camera Advanced Settings Toggle - ALWAYS VISIBLE IF CAMERA IS ACTIVE */}
+                    {isCameraActive && (
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); setShowCameraControls(!showCameraControls); }} 
+                            className={`p-2 rounded transition-colors ${showCameraControls ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-900 text-zinc-400'}`}
+                            title="Camera Settings (Zoom, Flash, Exposure)"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </button>
+                    )}
 
                     <div className="w-px h-6 bg-zinc-800 mx-1" />
 
@@ -349,6 +415,73 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                     <button onClick={(e) => { e.stopPropagation(); toggleMirror(); }} className={`p-2 rounded text-sm font-medium ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-300 hover:text-white'}`} title="Mirror Text (for teleprompter glass)">Mirror</button>
                 </div>
             </div>
+            
+            {/* Camera Settings Panel */}
+            {isCameraActive && showCameraControls && (
+                <div className="absolute top-16 right-4 z-40 bg-zinc-900/90 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-xl w-64 flex flex-col gap-4 text-xs" onDoubleClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2 mb-1">
+                        <span className="font-bold text-white">Camera Settings</span>
+                        <button onClick={() => setShowCameraControls(false)} className="text-zinc-500 hover:text-white">✕</button>
+                    </div>
+
+                    {!hasControls && (
+                         <div className="text-zinc-500 py-2 text-center italic">
+                             Advanced settings (Zoom, Flash) not supported by this browser/camera.
+                         </div>
+                    )}
+
+                    {/* Flash / Torch */}
+                    {cameraCapabilities && (cameraCapabilities as any).torch && (
+                        <div className="flex items-center justify-between">
+                            <span className="text-zinc-400">Flash</span>
+                            <button 
+                                onClick={() => applyCameraConstraint('torch', !(cameraSettings as any)?.torch)}
+                                className={`px-3 py-1 rounded-full ${(cameraSettings as any)?.torch ? 'bg-yellow-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}
+                            >
+                                {(cameraSettings as any)?.torch ? 'ON' : 'OFF'}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Zoom */}
+                    {cameraCapabilities && (cameraCapabilities as any).zoom && (
+                         <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-zinc-400">
+                                <span>Zoom</span>
+                                <span>{(cameraSettings as any)?.zoom?.toFixed(1)}x</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min={(cameraCapabilities as any).zoom.min} 
+                                max={(cameraCapabilities as any).zoom.max} 
+                                step={0.1}
+                                value={(cameraSettings as any)?.zoom || 1}
+                                onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))}
+                                className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"
+                            />
+                        </div>
+                    )}
+                    
+                    {/* Exposure Compensation */}
+                     {cameraCapabilities && (cameraCapabilities as any).exposureCompensation && (
+                         <div className="flex flex-col gap-1">
+                            <div className="flex justify-between text-zinc-400">
+                                <span>Exposure</span>
+                                <span>{(cameraSettings as any)?.exposureCompensation?.toFixed(1)}</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min={(cameraCapabilities as any).exposureCompensation.min} 
+                                max={(cameraCapabilities as any).exposureCompensation.max} 
+                                step={(cameraCapabilities as any).exposureCompensation.step}
+                                value={(cameraSettings as any)?.exposureCompensation || 0}
+                                onChange={(e) => applyCameraConstraint('exposureCompensation', parseFloat(e.target.value))}
+                                className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Persistent Timer Overlay */}
             {config.showTimer && (
@@ -373,7 +506,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                     onMouseDown={handleUserInteraction}
                     onScroll={handleScroll}
                 >
-                    <div ref={contentRef} className="py-[45vh] px-6 max-w-4xl mx-auto">
+                    {/* CHANGED PADDING TO 50VH TO ALLOW CENTER ALIGNMENT OF TOP AND BOTTOM LINES */}
+                    <div ref={contentRef} className="py-[50vh] px-6 max-w-4xl mx-auto">
                         {segments.map((seg, idx) => {
                             const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
                             return (

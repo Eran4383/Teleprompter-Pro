@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.3 - Improved double-click handling for smoother text editing.",
+  "description": "Teleprompter PRO v1.2.5 - Always show camera settings button with fallback message.",
   "requestFramePermissions": [
     "camera",
     "microphone"
