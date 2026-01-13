@@ -38,13 +38,13 @@ const App: React.FC = () => {
         {mode === AppMode.EDITOR && (
           <>
             <header className="px-4 py-3 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center shrink-0">
-                <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/20">
-                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/20">
+                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                     </div>
-                    <div>
-                        <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white leading-none">Teleprompter PRO</h1>
-                        <p className="text-[9px] text-zinc-600 font-mono leading-none">{APP_VERSION}</p>
+                    <div className="flex items-baseline gap-2">
+                        <h1 className="text-lg font-bold tracking-tight text-white leading-none">Teleprompter PRO</h1>
+                        <span className="text-xs font-medium text-zinc-500">{APP_VERSION}</span>
                     </div>
                 </div>
                 <div className="flex items-center space-x-3">

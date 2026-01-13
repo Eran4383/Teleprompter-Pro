@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.7 - Added persistent settings button to bottom toolbar.",
+  "description": "Teleprompter PRO v1.2.8 - Fix production build crash and update version styling.",
   "requestFramePermissions": [
     "camera",
     "microphone"
