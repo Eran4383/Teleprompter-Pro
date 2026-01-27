@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.21 - Critical fix for blank screen and deployment.",
+  "description": "Teleprompter PRO v1.2.20 - Stability updates and deployment fixes.",
   "requestFramePermissions": [
     "camera",
     "microphone"
