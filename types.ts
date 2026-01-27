@@ -4,14 +4,11 @@ export interface SegmentWord {
     color?: string; // tailwind class e.g. 'text-yellow-400'
 }
 
-export type TextAlign = 'left' | 'center' | 'right';
-
 export interface ScriptSegment {
     id: string;
     text: string;
     words: SegmentWord[];
     duration: number; // Duration in milliseconds to speak this segment
-    textAlign?: TextAlign;
 }
 
 export interface SavedScript {
@@ -20,7 +17,6 @@ export interface SavedScript {
     date: string; // ISO string
     segments: ScriptSegment[];
     rawText: string;
-    textAlign?: TextAlign;
 }
 
 export enum AppMode {
@@ -42,8 +38,4 @@ export interface PromptConfig {
     brightness: number; // 0.5 to 2.0 (1 is default)
     contrast: number;   // 0.5 to 2.0 (1 is default)
     saturation: number; // 0 to 2.0 (1 is default)
-    // Styling
-    primaryColor: string;
-    ghostColor: string;
-    guideOffset: number; // 0 to 100 (%)
 }

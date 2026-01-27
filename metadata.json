@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.32 - Advanced features: RTL auto-alignment, persistent config via LocalStorage, Primary/Ghost color controls, and adjustable guide line position.",
+  "description": "Teleprompter PRO v1.2.21 - Critical fix for blank screen and deployment.",
   "requestFramePermissions": [
     "camera",
     "microphone"
