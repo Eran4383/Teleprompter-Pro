@@ -1,6 +1,7 @@
+
 import { ScriptSegment } from "./types";
 
-export const APP_VERSION = "v1.2.20";
+export const APP_VERSION = "v1.2.28";
 
 const createSegment = (id: string, text: string, duration: number): ScriptSegment => ({
     id,
@@ -16,6 +17,6 @@ export const DEFAULT_SCRIPT: ScriptSegment[] = [
     createSegment('4', "Try the new Brightness and Contrast sliders.", 4000),
 ];
 
-export const MIN_DURATION = 100; // 100ms
-export const MAX_DURATION = 30000; // 30s
+export const MIN_DURATION = 100;
+export const MAX_DURATION = 30000;
 export const DEFAULT_FONT_SIZE = 64;
