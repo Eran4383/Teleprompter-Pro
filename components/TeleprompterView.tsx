@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { PromptConfig, ScriptSegment } from '../types';
 import { useCamera } from '../hooks/useCamera';
@@ -61,12 +62,27 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                             const isActive = prompter.elapsedTime >= prompter.segmentTimeMap[idx].start && prompter.elapsedTime < prompter.segmentTimeMap[idx].end;
                             return (
                                 <div 
-                                    key={seg.id} ref={el => prompter.segmentRefs.current[idx] = el} 
-                                    className="mb-10 font-bold text-center leading-tight transition-all duration-300"
-                                    style={{ fontSize: config.fontSize + 'px', opacity: isActive ? 1 : config.guideOpacity, transform: isActive ? 'scale(1)' : 'scale(0.95)' }}
+                                    key={seg.id} 
+                                    // Fix: Wrapped assignment in braces to ensure the ref callback returns void instead of the element.
+                                    ref={el => { prompter.segmentRefs.current[idx] = el; }} 
+                                    className="mb-10 font-bold leading-tight transition-all duration-300"
+                                    style={{ 
+                                        fontSize: config.fontSize + 'px', 
+                                        opacity: isActive ? 1 : config.guideOpacity, 
+                                        transform: isActive ? 'scale(1)' : 'scale(0.95)',
+                                        textAlign: seg.textAlign || 'center'
+                                    }}
                                     dir="auto"
                                 >
-                                    {seg.words.map((w, wi) => <span key={wi} className={`mr-[0.2em] ${w.color || 'text-white'}`}>{w.text}</span>)}
+                                    {seg.words.map((w, wi) => (
+                                        <span 
+                                            key={wi} 
+                                            className={`mr-[0.2em] ${w.color || 'text-white'}`}
+                                            dir="auto"
+                                        >
+                                            {w.text}
+                                        </span>
+                                    ))}
                                 </div>
                             );
                         })}
@@ -75,14 +91,14 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             </div>
 
             <div className="bg-zinc-950/90 border-t border-zinc-900 px-4 py-4 z-50 flex items-center justify-center gap-6">
-                <button onClick={onClose} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white">✕</button>
+                <button onClick={onClose} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors">✕</button>
                 <input type="range" min="0.1" max="2.5" step="0.1" value={prompter.speedMultiplier} onChange={e => prompter.setSpeedMultiplier(parseFloat(e.target.value))} className="w-32 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg cursor-pointer" />
                 <button onClick={prompter.handlePlayPause} className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${prompter.isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}>
                     {prompter.isPlaying ? '⏸' : '▶'}
                 </button>
-                <button onClick={prompter.handleStop} className="p-3 bg-zinc-900 rounded-full text-zinc-500">⏹</button>
+                <button onClick={prompter.handleStop} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors">⏹</button>
                 <button onClick={() => setShowSettings(!showSettings)} className={`p-3 rounded-full ${showSettings ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>⚙️</button>
-                <button onClick={camera.handleRecordClick} className={`p-3 rounded-full ${camera.isRecording ? 'bg-red-600 text-white animate-pulse' : 'text-red-500'}`}>
+                <button onClick={camera.handleRecordClick} className={`p-3 rounded-full transition-colors ${camera.isRecording ? 'bg-red-600 text-white animate-pulse' : 'text-red-500'}`}>
                     {camera.isCameraActive ? (camera.isRecording ? 'REC' : '●') : '📷'}
                 </button>
             </div>

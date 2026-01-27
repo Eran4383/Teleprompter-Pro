@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.27 - Atomic logic for camera, scrolling, and settings. Production ready with verified modular architecture.",
+  "description": "Teleprompter PRO v1.2.28 - Added RTL/LTR auto-detection and manual text alignment controls (Left, Center, Right) for better Hebrew support.",
   "requestFramePermissions": [
     "camera",
     "microphone"

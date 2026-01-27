@@ -1,14 +1,16 @@
-
 export interface SegmentWord {
     text: string;
     color?: string; // tailwind class e.g. 'text-yellow-400'
 }
+
+export type TextAlign = 'left' | 'center' | 'right';
 
 export interface ScriptSegment {
     id: string;
     text: string;
     words: SegmentWord[];
     duration: number; // Duration in milliseconds to speak this segment
+    textAlign?: TextAlign;
 }
 
 export interface SavedScript {
@@ -17,6 +19,7 @@ export interface SavedScript {
     date: string; // ISO string
     segments: ScriptSegment[];
     rawText: string;
+    textAlign?: TextAlign;
 }
 
 export enum AppMode {

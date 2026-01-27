@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ScriptSegment } from '../types';
 
@@ -7,8 +8,10 @@ export const useTeleprompter = (segments: ScriptSegment[]) => {
     const [speedMultiplier, setSpeedMultiplier] = useState(1);
     
     const containerRef = useRef<HTMLDivElement>(null);
-    const requestRef = useRef<number>();
-    const lastTimeRef = useRef<number>();
+    // Fix: Added undefined initial value to avoid TypeScript error about missing arguments.
+    const requestRef = useRef<number | undefined>(undefined);
+    // Fix: Added undefined initial value to avoid TypeScript error about missing arguments.
+    const lastTimeRef = useRef<number | undefined>(undefined);
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
     const isManualScroll = useRef(false);
 
