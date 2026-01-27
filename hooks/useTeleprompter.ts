@@ -2,15 +2,13 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ScriptSegment } from '../types';
 
-export const useTeleprompter = (segments: ScriptSegment[]) => {
+export const useTeleprompter = (segments: ScriptSegment[], guideOffset: number = 50) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [speedMultiplier, setSpeedMultiplier] = useState(1);
     
     const containerRef = useRef<HTMLDivElement>(null);
-    // Fix: Added undefined initial value to avoid TypeScript error about missing arguments.
     const requestRef = useRef<number | undefined>(undefined);
-    // Fix: Added undefined initial value to avoid TypeScript error about missing arguments.
     const lastTimeRef = useRef<number | undefined>(undefined);
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
     const isManualScroll = useRef(false);
@@ -29,31 +27,35 @@ export const useTeleprompter = (segments: ScriptSegment[]) => {
     const syncTimeFromScroll = useCallback(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
-        const center = container.scrollTop + (container.clientHeight / 2);
+        const offsetRatio = guideOffset / 100;
+        const guideY = container.scrollTop + (container.clientHeight * offsetRatio);
+        
         let activeIdx = -1;
         for (let i = 0; i < segmentRefs.current.length; i++) {
             const el = segmentRefs.current[i];
-            if (el && (el.offsetTop <= center && el.offsetTop + el.clientHeight >= center)) {
+            if (el && (el.offsetTop <= guideY && el.offsetTop + el.clientHeight >= guideY)) {
                 activeIdx = i; break;
             }
-            if (el && el.offsetTop > center) {
+            if (el && el.offsetTop > guideY) {
                 activeIdx = i > 0 ? i - 1 : 0; break;
             }
         }
+        
         if (activeIdx === -1) {
             if (container.scrollTop + container.clientHeight >= container.scrollHeight - 50) {
                 setElapsedTime(totalDuration); return;
             }
             if (container.scrollTop < 100) { setElapsedTime(0); return; }
         }
+        
         const el = segmentRefs.current[activeIdx];
         const segMap = segmentTimeMap[activeIdx];
         if (el && segMap) {
-            const dist = center - el.offsetTop;
+            const dist = guideY - el.offsetTop;
             const ratio = Math.max(0, Math.min(1, dist / el.clientHeight));
             setElapsedTime(segMap.start + (segMap.duration * ratio));
         }
-    }, [segmentTimeMap, totalDuration]);
+    }, [segmentTimeMap, totalDuration, guideOffset]);
 
     const animate = useCallback((time: number) => {
         if (lastTimeRef.current !== undefined && isPlaying) {
@@ -79,14 +81,16 @@ export const useTeleprompter = (segments: ScriptSegment[]) => {
             const activeEl = segmentRefs.current[activeIdx];
             if (activeEl) {
                 const containerHeight = containerRef.current.clientHeight;
+                const offsetRatio = guideOffset / 100;
                 const segmentData = segmentTimeMap[activeIdx];
                 const segmentProgress = (elapsedTime - segmentData.start) / (segmentData.end - segmentData.start);
-                const targetScroll = activeEl.offsetTop - (containerHeight / 2) + (activeEl.clientHeight / 2);
-                const scrollOffset = targetScroll + (activeEl.clientHeight * segmentProgress) - (activeEl.clientHeight/2);
+                
+                // Align the progress point of the segment to the guide line
+                const scrollOffset = activeEl.offsetTop + (activeEl.clientHeight * segmentProgress) - (containerHeight * offsetRatio);
                 containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
             }
         }
-    }, [elapsedTime, isPlaying, segmentTimeMap]);
+    }, [elapsedTime, isPlaying, segmentTimeMap, guideOffset]);
 
     const handlePlayPause = useCallback(() => {
         if (!isPlaying && isManualScroll.current) {
