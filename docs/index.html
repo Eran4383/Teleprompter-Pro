@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.27 - Demo</title>
+    <title>Teleprompter PRO v1.2.29 - Standalone Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
@@ -22,241 +23,51 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-        const APP_VERSION = "v1.2.27";
-        const AppMode = { EDITOR: 'EDITOR', PROMPTER: 'PROMPTER' };
-
-        // --- Mock Services for Demo ---
-        const mockOptimizeScript = async (text) => {
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    const lines = text.split('\n').filter(l => l.trim());
-                    resolve(lines.map((l, i) => ({
-                        id: `demo-${Date.now()}-${i}`,
-                        text: l,
-                        words: l.split(' ').map(w => ({ text: w })),
-                        duration: Math.max(2000, l.split(' ').length * 350 + (l.includes('.') ? 1000 : 0))
-                    })));
-                }, 800);
-            });
+        const isRTL = (text) => {
+            const rtlChars = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+            return rtlChars.test(text);
         };
 
-        const mockGenerateScript = async (topic) => {
-             return new Promise(resolve => {
-                setTimeout(() => {
-                    const text = `Drafting a script about: ${topic}.\nPoint 1: Enhanced audience engagement through eye contact.\nPoint 2: Professional delivery with atomic timing control.\nPoint 3: Seamless integration of hardware zoom and exposure.`;
-                    const lines = text.split('\n');
-                    resolve(lines.map((l, i) => ({
-                        id: `gen-${Date.now()}-${i}`,
-                        text: l,
-                        words: l.split(' ').map(w => ({ text: w })),
-                        duration: Math.max(2500, l.split(' ').length * 400)
-                    })));
-                }, 800);
-             });
-        };
-
-        // --- Shared Components ---
-        const Button = ({ children, variant = 'primary', size = 'md', isLoading, icon, className = '', disabled, ...props }) => {
-            const baseStyles = "inline-flex items-center justify-center font-medium transition-colors rounded-lg h-fit";
-            const variants = {
-                primary: "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-900/20",
-                secondary: "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700",
-                danger: "bg-red-600 hover:bg-red-700 text-white",
-                ghost: "bg-transparent hover:bg-zinc-800 text-zinc-400 hover:text-white"
-            };
-            const sizes = { sm: "px-3 py-1.5 text-sm", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
-            return (
-                <button className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : ''} ${className}`} disabled={disabled || isLoading} {...props}>
-                    {isLoading ? <span className="animate-pulse">...</span> : <>{icon && <span className="mr-2">{icon}</span>}{children}</>}
-                </button>
-            );
-        };
-
-        const Modal = ({ isOpen, title, message, onClose, onConfirm, confirmText = "OK", isInput, inputValue, onInputChange, type = 'info' }) => {
-            if (!isOpen) return null;
-            return (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-                    <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm p-5 animate-modal-pop" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-                        {message && <p className="text-zinc-400 text-sm mb-4 leading-relaxed">{message}</p>}
-                        {isInput && <input type="text" value={inputValue} onChange={e => onInputChange(e.target.value)} className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white mb-4 outline-none focus:ring-1 focus:ring-indigo-500" autoFocus />}
-                        <div className="flex justify-end gap-2 mt-2">
-                            <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white">Cancel</button>
-                            {onConfirm && <button onClick={() => { onConfirm(); onClose(); }} className={`px-4 py-2 text-xs font-medium rounded-lg text-white ${type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{confirmText}</button>}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- UI Container Components ---
-        const SettingsPanel = ({ config, setConfig, showSettings, setShowSettings }) => {
-            if (!showSettings) return null;
-            return (
-                <div className="absolute top-20 left-6 z-50 bg-zinc-950/95 border border-zinc-800 p-4 rounded-xl w-64 text-xs flex flex-col gap-4 shadow-2xl backdrop-blur">
-                    <div className="flex justify-between border-b border-zinc-800 pb-2">
-                        <span className="font-bold">Settings</span>
-                        <button onClick={() => setShowSettings(false)}>✕</button>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        <span>Font Size: {config.fontSize}px</span>
-                        <input type="range" min="20" max="150" value={config.fontSize} onChange={e => setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full h-1.5 accent-indigo-500 bg-zinc-800 rounded-lg appearance-none"/>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span>Mirror Text</span>
-                        <button onClick={() => setConfig({...config, isMirrored: !config.isMirrored})} className={`px-2 py-1 rounded ${config.isMirrored ? 'bg-indigo-600' : 'bg-zinc-800'}`}>{config.isMirrored ? 'ON' : 'OFF'}</button>
-                    </div>
-                    <div className="flex flex-col gap-2 pt-2 border-t border-zinc-800">
-                        <span>Brightness</span>
-                        <input type="range" min="0.5" max="2.0" step="0.1" value={config.brightness} onChange={e => setConfig({...config, brightness: parseFloat(e.target.value)})} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
-                    </div>
-                </div>
-            );
-        };
-
-        const formatTime = (ms) => {
-            const totalSeconds = Math.floor(ms / 1000);
-            const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-            const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${m}:${s}`;
-        };
-
-        const TeleprompterView = ({ segments, onClose }) => {
+        const PrompterView = ({ segments, onClose }) => {
             const [isPlaying, setIsPlaying] = useState(false);
             const [elapsedTime, setElapsedTime] = useState(0);
-            const [speed, setSpeed] = useState(1);
-            const [showSettings, setShowSettings] = useState(false);
-            const [config, setConfig] = useState({ fontSize: 64, isMirrored: false, brightness: 1, contrast: 1 });
-            const containerRef = useRef(null);
-            const requestRef = useRef();
+            const containerRef = useRef();
             const lastTimeRef = useRef();
-            const segmentRefs = useRef([]);
-
-            const totalDuration = useMemo(() => segments.reduce((a, s) => a + s.duration, 0), [segments]);
-            const timeMap = useMemo(() => {
-                let acc = 0;
-                return segments.map(s => { const start = acc; acc += s.duration; return { start, end: acc }; });
-            }, [segments]);
-
-            const animate = (time) => {
-                if (lastTimeRef.current !== undefined && isPlaying) {
-                    const dt = time - lastTimeRef.current;
-                    setElapsedTime(prev => Math.min(totalDuration, prev + (dt * speed)));
-                }
-                lastTimeRef.current = time;
-                requestRef.current = requestAnimationFrame(animate);
-            };
+            const totalDuration = segments.length * 3000;
 
             useEffect(() => {
-                requestRef.current = requestAnimationFrame(animate);
-                return () => cancelAnimationFrame(requestRef.current);
-            }, [isPlaying, speed, totalDuration]);
+                const animate = (time) => {
+                    if (lastTimeRef.current !== undefined && isPlaying) {
+                        const dt = time - lastTimeRef.current;
+                        setElapsedTime(prev => Math.min(totalDuration, prev + dt));
+                    }
+                    lastTimeRef.current = time;
+                    requestAnimationFrame(animate);
+                };
+                const id = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(id);
+            }, [isPlaying, totalDuration]);
 
             useEffect(() => {
                 if (!isPlaying || !containerRef.current) return;
-                const idx = timeMap.findIndex(m => elapsedTime >= m.start && elapsedTime < m.end);
-                if (idx !== -1 && segmentRefs.current[idx]) {
-                    const el = segmentRefs.current[idx];
-                    const target = el.offsetTop - (containerRef.current.clientHeight / 2) + (el.clientHeight / 2);
-                    const progress = (elapsedTime - timeMap[idx].start) / (timeMap[idx].end - timeMap[idx].start);
-                    containerRef.current.scrollTo({ top: target + (el.clientHeight * progress) - (el.clientHeight/2), behavior: 'auto' });
-                }
-            }, [elapsedTime, isPlaying, timeMap]);
+                const progress = elapsedTime / totalDuration;
+                containerRef.current.scrollTop = progress * containerRef.current.scrollHeight - (containerRef.current.clientHeight / 2);
+            }, [elapsedTime, isPlaying, totalDuration]);
 
             return (
-                <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
-                    <SettingsPanel config={config} setConfig={setConfig} showSettings={showSettings} setShowSettings={setShowSettings} />
-                    <div className="absolute top-6 left-6 z-30 font-mono text-4xl font-bold opacity-30 select-none drop-shadow-md">
-                        {formatTime(elapsedTime)}
-                    </div>
-                    <div ref={containerRef} onMouseDown={()=>setIsPlaying(false)} className={`flex-1 overflow-y-auto no-scrollbar ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
-                        <div className="py-[50vh] px-6 max-w-4xl mx-auto text-center">
-                            {segments.map((s, i) => {
-                                const active = elapsedTime >= timeMap[i].start && elapsedTime < timeMap[i].end;
-                                return <div key={i} ref={el => segmentRefs.current[i] = el} className="mb-12 font-bold leading-tight transition-all duration-300" style={{ fontSize: config.fontSize, opacity: active ? 1 : 0.1, transform: active ? 'scale(1.05)' : 'scale(1)' }}>{s.text}</div>;
-                            })}
-                        </div>
-                        <div className="absolute inset-0 pointer-events-none flex items-center z-20"><div className="w-full h-px bg-red-600/20" /></div>
-                    </div>
-                    <div className="bg-zinc-950/90 p-4 border-t border-zinc-900 flex items-center justify-center gap-6 z-50">
-                        <button onClick={onClose} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors">✕</button>
-                        <input type="range" min="0.1" max="2.5" step="0.1" value={speed} onChange={e=>setSpeed(parseFloat(e.target.value))} className="w-32 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"/>
-                        <button onClick={()=>setIsPlaying(!isPlaying)} className={`w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-lg transition-transform active:scale-95 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}>{isPlaying ? '⏸' : '▶'}</button>
-                        <button onClick={()=>{setIsPlaying(false); setElapsedTime(0);}} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors">⏹</button>
-                        <button onClick={()=>setShowSettings(!showSettings)} className={`p-3 rounded-full transition-colors ${showSettings ? 'bg-zinc-800 text-white' : 'bg-zinc-900 text-zinc-500'}`}>⚙️</button>
-                    </div>
-                </div>
-            );
-        };
-
-        const ScriptEditor = ({ segments, onSegmentsChange, onStartPrompt }) => {
-            const [activeTab, setActiveTab] = useState('write');
-            const [rawText, setRawText] = useState(segments.map(s => s.text).join('\n'));
-            const [isProcessing, setIsProcessing] = useState(false);
-            const [topic, setTopic] = useState('');
-            const [saved, setSaved] = useState(JSON.parse(localStorage.getItem('tp_hist') || '[]'));
-
-            const sync = () => {
-                const lines = rawText.split('\n').filter(l => l.trim());
-                if (lines.length === 0) return [];
-                const news = lines.map((l, i) => ({ id: `s-${Date.now()}-${i}`, text: l, words: l.split(' ').map(w=>({text:w})), duration: Math.max(2000, l.split(' ').length * 400) }));
-                onSegmentsChange(news);
-                const firstLine = lines[0].slice(0, 30);
-                const hist = [{ id: Date.now(), title: firstLine, date: new Date().toISOString(), segments: news, rawText }, ...saved].slice(0, 10);
-                setSaved(hist);
-                localStorage.setItem('tp_hist', JSON.stringify(hist));
-                return news;
-            };
-
-            return (
-                <div className="flex flex-col h-full bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden shadow-2xl relative">
-                    <div className="flex justify-between items-center p-3 bg-zinc-950 border-b border-zinc-800 shrink-0">
-                        <div className="flex gap-1">
-                            {['write', 'tune', 'history'].map(t => <button key={t} onClick={()=>setActiveTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeTab===t ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'}`}>{t}</button>)}
-                        </div>
-                        <Button onClick={()=>{ if(activeTab==='write') sync(); onStartPrompt(); }} icon={<svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}>Start</Button>
-                    </div>
-                    <div className="flex-1 p-4 overflow-hidden min-h-0">
-                        {activeTab === 'write' && (
-                            <div className="h-full flex flex-col gap-4">
-                                <div className="flex flex-col sm:flex-row gap-2 p-2 bg-zinc-950 rounded border border-zinc-800 shrink-0">
-                                    <div className="flex gap-2 flex-1">
-                                        <Button variant="secondary" size="sm" onClick={async ()=>{setIsProcessing(true); const opt=await mockOptimizeScript(rawText); onSegmentsChange(opt); setRawText(opt.map(s=>s.text).join('\n')); setActiveTab('tune'); setIsProcessing(false);}} isLoading={isProcessing}>AI Timing</Button>
-                                        <input type="text" placeholder="Script topic..." value={topic} onChange={e=>setTopic(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                                        <Button size="sm" onClick={async ()=>{if(!topic.trim()) return; setIsProcessing(true); const gen=await mockGenerateScript(topic); onSegmentsChange(gen); setRawText(gen.map(s=>s.text).join('\n')); setTopic(''); setActiveTab('tune'); setIsProcessing(false);}}>Gen</Button>
-                                    </div>
-                                    <div className="flex gap-2 justify-end">
-                                        <Button variant="ghost" size="sm" onClick={()=>sync()} className="text-[10px] uppercase font-bold tracking-widest">Sync</Button>
-                                    </div>
-                                </div>
-                                <textarea className="flex-1 w-full bg-zinc-950 p-4 rounded border border-zinc-800 text-white font-mono leading-relaxed resize-none outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow" value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Type or paste your script content here..." />
+                <div className="fixed inset-0 bg-black flex flex-col text-white z-[1000]">
+                    <div ref={containerRef} className="flex-1 overflow-y-auto no-scrollbar py-[50vh] px-10">
+                        {segments.map((s, i) => (
+                            <div key={i} dir="auto" className="text-4xl font-bold mb-10 transition-opacity duration-300" style={{ opacity: (elapsedTime >= i*3000 && elapsedTime < (i+1)*3000) ? 1 : 0.1, textAlign: s.textAlign || 'center' }}>
+                                {s.text}
                             </div>
-                        )}
-                        {activeTab === 'tune' && (
-                            <div className="h-full overflow-y-auto space-y-3 no-scrollbar pr-1">
-                                {segments.length === 0 ? <div className="h-full flex items-center justify-center text-zinc-600">No content to tune. Go to 'Write' first.</div> : 
-                                 segments.map(s => (
-                                    <div key={s.id} className="bg-zinc-950 p-4 rounded border border-zinc-800 group hover:border-zinc-700 transition-colors">
-                                        <div className="text-lg font-medium mb-3 leading-snug">{s.text}</div>
-                                        <div className="flex items-center gap-4">
-                                            <input type="range" min="500" max="15000" step="100" value={s.duration} onChange={e=>onSegmentsChange(segments.map(seg => seg.id===s.id ? {...seg, duration: parseInt(e.target.value)} : seg))} className="flex-1 accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer" />
-                                            <span className="text-xs font-mono text-zinc-500 w-8">{(s.duration/1000).toFixed(1)}s</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {activeTab === 'history' && (
-                            <div className="space-y-2 overflow-y-auto h-full no-scrollbar">
-                                {saved.length === 0 ? <div className="h-full flex items-center justify-center text-zinc-600">History is empty.</div> : 
-                                 saved.map(s => (
-                                    <div key={s.id} onClick={()=>{onSegmentsChange(s.segments); setRawText(s.rawText); setActiveTab('write');}} className="p-4 bg-zinc-950 rounded border border-zinc-800 cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group">
-                                        <div className="font-bold text-zinc-200 group-hover:text-white">{s.title || "Untitled Script"}</div>
-                                        <div className="text-[10px] text-zinc-500 mt-1 uppercase tracking-tighter">{new Date(s.date).toLocaleDateString()} • {s.segments.length} segments</div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        ))}
+                    </div>
+                    <div className="p-6 bg-zinc-950 border-t border-zinc-900 flex justify-center gap-6">
+                        <button onClick={onClose} className="px-4 py-2 bg-zinc-900 rounded-lg">Exit</button>
+                        <button onClick={() => setIsPlaying(!isPlaying)} className="px-10 py-2 bg-indigo-600 rounded-lg font-bold">
+                            {isPlaying ? 'Pause' : 'Play'}
+                        </button>
                     </div>
                 </div>
             );
@@ -264,54 +75,71 @@
 
         const App = () => {
             const [segments, setSegments] = useState([
-                { id: 'd1', text: "Welcome to Teleprompter PRO v1.2.27.", duration: 3000 },
-                { id: 'd2', text: "Adjust the timing in the Tune tab or write your own script.", duration: 4000 },
-                { id: 'd3', text: "Double-click anywhere empty to toggle fullscreen mode.", duration: 4000 }
+                { id: '1', text: "שלום לכולם, ברוכים הבאים לגרסה המעודכנת.", duration: 3000, textAlign: 'right' },
+                { id: '2', text: "זוהי הדגמה של זיהוי טקסט עברי אוטומטי.", duration: 3000, textAlign: 'right' },
+                { id: '3', text: "This line is in English and stays left.", duration: 3000, textAlign: 'left' }
             ]);
-            const [mode, setMode] = useState(AppMode.EDITOR);
+            const [rawText, setRawText] = useState(segments.map(s => s.text).join('\n'));
+            const [mode, setMode] = useState('EDITOR');
+            const [textAlign, setTextAlign] = useState('right');
 
             useEffect(() => {
-                const handleDblClick = (e) => {
-                    if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
-                    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-                    else document.exitFullscreen().catch(() => {});
-                };
-                window.addEventListener('dblclick', handleDblClick);
-                return () => window.removeEventListener('dblclick', handleDblClick);
-            }, []);
+                const detected = isRTL(rawText) ? 'right' : 'left';
+                setTextAlign(detected);
+            }, [rawText]);
+
+            const handleStart = () => {
+                const lines = rawText.split('\n').filter(l => l.trim());
+                setSegments(lines.map((l, i) => ({ id: `s-${i}`, text: l, duration: 3000, textAlign: isRTL(l) ? 'right' : 'left' })));
+                setMode('PROMPTER');
+            };
 
             return (
                 <div className="h-screen w-full flex flex-col bg-zinc-950 text-white overflow-hidden p-3 sm:p-6">
-                    {mode === AppMode.EDITOR ? (
+                    {mode === 'EDITOR' ? (
                         <div className="max-w-4xl mx-auto w-full h-full flex flex-col">
                             <header className="flex justify-between items-center mb-6 shrink-0">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
                                         <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                                     </div>
                                     <div>
                                         <h1 className="text-xl font-bold tracking-tight">Teleprompter PRO</h1>
-                                        <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">{APP_VERSION} • DEPLOYED DEMO</p>
+                                        <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">v1.2.29 • DEMO</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                                    <a href="https://ai.google.dev" target="_blank" className="hover:text-white transition-colors">API info</a>
-                                    <span className="opacity-20">|</span>
-                                    <span>Standalone Build</span>
+                                <div className="flex gap-2">
+                                    {['left', 'center', 'right'].map(a => (
+                                        <button key={a} onClick={() => setTextAlign(a)} className={`w-8 h-8 rounded border transition-colors ${textAlign === a ? 'bg-indigo-600 border-indigo-500' : 'bg-zinc-800 border-zinc-700'}`}>
+                                            {a[0].toUpperCase()}
+                                        </button>
+                                    ))}
                                 </div>
                             </header>
-                            <main className="flex-1 min-h-0">
-                                <ScriptEditor segments={segments} onSegmentsChange={setSegments} onStartPrompt={()=>setMode(AppMode.PROMPTER)} />
+                            <main className="flex-1 min-h-0 bg-zinc-900 rounded-xl border border-zinc-800 p-6 flex flex-col">
+                                <textarea 
+                                    dir="auto"
+                                    className="flex-1 bg-zinc-950 p-4 rounded-lg border border-zinc-800 text-white font-mono mb-4 resize-none outline-none focus:ring-1 focus:ring-indigo-500"
+                                    style={{ textAlign }}
+                                    value={rawText}
+                                    onChange={e => setRawText(e.target.value)}
+                                    placeholder="הקלידו טקסט בעברית או באנגלית..."
+                                />
+                                <div className="flex justify-end">
+                                    <button onClick={handleStart} className="px-10 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-lg shadow-indigo-900/20 transition-all active:scale-95">Start Prompt</button>
+                                </div>
                             </main>
                         </div>
                     ) : (
-                        <TeleprompterView segments={segments} onClose={()=>setMode(AppMode.EDITOR)} />
+                        <PrompterView segments={segments} onClose={() => setMode('EDITOR')} />
                     )}
                 </div>
             );
         };
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        // Standard React 18 Mounting
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>

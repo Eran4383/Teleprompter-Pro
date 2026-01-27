@@ -1,6 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ScriptSegment, SavedScript, TextAlign } from '../types';
 import { generateScriptFromTopic, optimizeScript } from '../services/geminiService';
+
+const isRTL = (text: string) => {
+    const rtlChars = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+    return rtlChars.test(text);
+};
 
 export const useScriptEditor = (
     segments: ScriptSegment[], 
@@ -17,11 +23,22 @@ export const useScriptEditor = (
     const [modalConfig, setModalConfig] = useState<any>({ isOpen: false });
     const [tempInput, setTempInput] = useState('');
     const [textAlign, setTextAlign] = useState<TextAlign>('center');
+    const hasManuallyAligned = useRef(false);
 
     const showToast = (msg: string, type: 'success'|'error' = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     };
+
+    // Auto-detect direction
+    useEffect(() => {
+        if (!hasManuallyAligned.current && rawText.trim()) {
+            const detectedAlign = isRTL(rawText) ? 'right' : 'left';
+            if (detectedAlign !== textAlign) {
+                setTextAlign(detectedAlign);
+            }
+        }
+    }, [rawText, textAlign]);
 
     const loadHistory = useCallback(() => {
         const stored = localStorage.getItem('teleprompter_history');
@@ -35,8 +52,8 @@ export const useScriptEditor = (
 
     useEffect(() => { loadHistory(); }, [loadHistory]);
 
-    // Update segments when alignment changes manually
     const updateAlignment = (align: TextAlign) => {
+        hasManuallyAligned.current = true;
         setTextAlign(align);
         const updated = segments.map(s => ({ ...s, textAlign: align }));
         onSegmentsChange(updated);
@@ -61,7 +78,8 @@ export const useScriptEditor = (
     };
 
     const syncSegments = () => {
-        const newSegments = rawText.split('\n').filter(l => l.trim()).map((line, i) => ({
+        const lines = rawText.split('\n').filter(l => l.trim());
+        const newSegments = lines.map((line, i) => ({
             id: segments[i]?.text === line ? segments[i].id : `seg-${Date.now()}-${i}`,
             text: line,
             words: line.split(' ').map(w => ({ text: w })),
@@ -74,6 +92,7 @@ export const useScriptEditor = (
     };
 
     const handleAIOptimize = async () => {
+        if (!rawText.trim()) return;
         setIsProcessing(true);
         try {
             const opt = await optimizeScript(rawText);
@@ -82,11 +101,13 @@ export const useScriptEditor = (
             setRawText(opt.map(s => s.text).join('\n'));
             saveToHistory(optWithAlign);
             setActiveTab('tune');
-        } catch (e) { setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to optimize script.", type: 'danger' }); }
-        finally { setIsProcessing(false); }
+        } catch (e) { 
+            setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to optimize script.", type: 'danger' }); 
+        } finally { setIsProcessing(false); }
     };
 
     const handleAIGenerate = async () => {
+        if (!topicInput.trim()) return;
         setIsProcessing(true);
         try {
             const gen = await generateScriptFromTopic(topicInput);
@@ -96,15 +117,19 @@ export const useScriptEditor = (
             saveToHistory(genWithAlign);
             setTopicInput('');
             setActiveTab('tune');
-        } catch (e) { setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to generate script.", type: 'danger' }); }
-        finally { setIsProcessing(false); }
+        } catch (e) { 
+            setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to generate script.", type: 'danger' }); 
+        } finally { setIsProcessing(false); }
     };
 
     const selectFromHistory = (s: SavedScript) => {
         onSegmentsChange(s.segments);
         setRawText(s.rawText);
         setCurrentScriptId(s.id);
-        if (s.textAlign) setTextAlign(s.textAlign);
+        if (s.textAlign) {
+            setTextAlign(s.textAlign);
+            hasManuallyAligned.current = true;
+        }
         setActiveTab('write');
     };
 
