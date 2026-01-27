@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.29 - Added auto RTL/LTR detection, manual alignment controls, and fixed GitHub Pages deployment issues.",
+  "description": "Teleprompter PRO v1.2.30 - Fully synced production build for GitHub Pages with complete RTL/Alignment features and hardware controls.",
   "requestFramePermissions": [
     "camera",
     "microphone"
