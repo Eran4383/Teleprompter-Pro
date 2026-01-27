@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teleprompter PRO v1.2.32 - Standalone Build</title>
+    <title>Teleprompter PRO v1.2.32 - Full Build</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
@@ -20,19 +20,33 @@
         @keyframes fade-in-down { 0% { opacity: 0; transform: translate(-50%, -10px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
         .animate-fade-in-down { animation: fade-in-down 0.3s ease-out forwards; }
 
-        input[type="range"] { accent-color: #4f46e5; cursor: pointer; }
+        input[type="range"] { accent-color: #6366f1; cursor: pointer; }
         input[type="color"] { padding: 0; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; background: none; }
         input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
         input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+
+        .glass-panel { background: rgba(9, 9, 11, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
+        // Import Google GenAI from the global scope after we include it via script (or use esm.sh)
+        // Since we are in a standalone build, we will define a simple version of the AI service.
+    </script>
+    
+    <!-- We need the GenAI SDK for the AI features to work in the standalone file -->
+    <script type="module">
+        import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@^1.35.0";
+        window.GoogleGenAI = GoogleGenAI;
+        window.GenAIType = Type;
+    </script>
+
+    <script type="text/babel">
         const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-        // --- CONSTANTS ---
+        // --- UTILS & CONSTANTS ---
         const APP_VERSION = "v1.2.32";
         const DEFAULT_CONFIG = {
             fontSize: 64, 
@@ -44,14 +58,11 @@
             ghostColor: '#52525b',
             guideOffset: 50,
             guideOpacity: 0.2,
-            showTimer: true
+            showTimer: true,
+            videoScale: 1.0
         };
 
-        // --- UTILS ---
-        const isRTL = (text) => {
-            const rtlChars = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
-            return rtlChars.test(text);
-        };
+        const isRTL = (text) => /[\u0590-\u05FF\u0600-\u06FF]/.test(text);
         
         const formatTime = (ms) => {
             const totalSeconds = Math.floor(ms / 1000);
@@ -60,7 +71,31 @@
             return `${m}:${s}`;
         };
 
+        // --- AI SERVICES (PORTED) ---
+        const getAIService = () => {
+            if (!window.GoogleGenAI) return null;
+            const ai = new window.GoogleGenAI({ apiKey: "YOUR_API_KEY_PLACEHOLDER" }); // Will use process.env.API_KEY logic
+            return ai;
+        };
+
         // --- COMPONENTS ---
+
+        const Modal = ({ isOpen, title, message, onClose, onConfirm, type = 'info', children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-modal-pop" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+                        <p className="text-zinc-400 text-sm mb-6">{message}</p>
+                        {children}
+                        <div className="flex justify-end gap-3">
+                            <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-zinc-500 hover:text-white transition-colors">Cancel</button>
+                            {onConfirm && <button onClick={() => { onConfirm(); onClose(); }} className={`px-6 py-2 text-sm font-bold rounded-xl text-white transition-all active:scale-95 ${type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>Confirm</button>}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
 
         const SettingsPanel = ({ config, setConfig, showSettings, setShowSettings }) => {
             if (!showSettings) return null;
@@ -72,13 +107,13 @@
             };
 
             return (
-                <div className="absolute top-20 left-6 z-50 bg-zinc-950/98 backdrop-blur-xl border border-zinc-800 p-6 rounded-2xl shadow-2xl w-80 text-[11px] flex flex-col gap-5 max-h-[75vh] overflow-y-auto no-scrollbar border-indigo-500/10">
-                    <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                        <span className="font-black text-white uppercase tracking-widest text-[10px]">Prompter Configuration</span>
+                <div className="absolute top-24 left-8 z-[100] glass-panel p-6 rounded-2xl shadow-2xl w-80 text-[11px] flex flex-col gap-6 max-h-[70vh] overflow-y-auto no-scrollbar">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <span className="font-black text-zinc-400 uppercase tracking-widest text-[9px]">Settings & Hardware</span>
                         <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white transition-colors">✕</button>
                     </div>
 
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                         <section>
                             <div className="flex justify-between text-zinc-400 mb-2 font-bold uppercase tracking-tighter"><span>Font Size</span><span>{config.fontSize}px</span></div>
                             <input type="range" min="20" max="150" value={config.fontSize} onChange={(e) => update('fontSize', parseInt(e.target.value))} className="w-full h-1 bg-zinc-800 rounded-lg appearance-none"/>
@@ -90,36 +125,36 @@
                         </section>
 
                         <div className="flex items-center justify-between py-1">
-                            <span className="text-zinc-400 font-bold uppercase tracking-tighter">Mirror Display</span>
-                            <button onClick={() => update('isMirrored', !config.isMirrored)} className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${config.isMirrored ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-zinc-800 text-zinc-500'}`}>{config.isMirrored ? 'ON' : 'OFF'}</button>
+                            <span className="text-zinc-400 font-bold uppercase tracking-tighter">Mirror Text (Glass)</span>
+                            <button onClick={() => update('isMirrored', !config.isMirrored)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black transition-all ${config.isMirrored ? 'bg-indigo-600 text-white shadow-lg' : 'bg-zinc-800 text-zinc-500'}`}>{config.isMirrored ? 'ON' : 'OFF'}</button>
                         </div>
 
-                        <div className="pt-3 border-t border-zinc-800 grid grid-cols-2 gap-4">
+                        <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-4">
                             <div className="flex flex-col gap-2">
-                                <span className="text-zinc-500 font-black uppercase text-[9px]">Active Color</span>
-                                <div className="flex items-center gap-3">
+                                <span className="text-zinc-500 font-black uppercase text-[8px]">Active Word</span>
+                                <div className="flex items-center gap-2">
                                     <input type="color" value={config.primaryColor} onChange={(e) => update('primaryColor', e.target.value)} />
-                                    <span className="font-mono text-zinc-400 uppercase">{config.primaryColor}</span>
+                                    <span className="font-mono text-zinc-500 uppercase">{config.primaryColor}</span>
                                 </div>
                             </div>
                              <div className="flex flex-col gap-2">
-                                <span className="text-zinc-500 font-black uppercase text-[9px]">Ghost Color</span>
-                                <div className="flex items-center gap-3">
+                                <span className="text-zinc-500 font-black uppercase text-[8px]">Ghost Text</span>
+                                <div className="flex items-center gap-2">
                                     <input type="color" value={config.ghostColor} onChange={(e) => update('ghostColor', e.target.value)} />
-                                    <span className="font-mono text-zinc-400 uppercase">{config.ghostColor}</span>
+                                    <span className="font-mono text-zinc-500 uppercase">{config.ghostColor}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="pt-3 border-t border-zinc-800 space-y-4">
-                            <span className="text-zinc-500 uppercase text-[9px] font-black tracking-widest">Video Engine</span>
-                            {['brightness', 'contrast', 'saturation'].map(prop => (
+                        <div className="pt-2 border-t border-white/5 space-y-4">
+                            <span className="text-zinc-500 uppercase text-[8px] font-black tracking-widest">Video Processing</span>
+                            {['brightness', 'contrast', 'saturation', 'videoScale'].map(prop => (
                                 <div key={prop} className="flex flex-col gap-2">
-                                    <div className="flex justify-between">
+                                    <div className="flex justify-between items-center">
                                         <span className="text-zinc-400 capitalize font-bold">{prop}</span>
-                                        <span className="text-zinc-500">{Math.round(config[prop] * 100)}%</span>
+                                        <span className="text-zinc-600 font-mono">{Math.round(config[prop] * 100)}%</span>
                                     </div>
-                                    <input type="range" min="0.5" max="2.0" step="0.1" value={config[prop]} onChange={(e) => update(prop, parseFloat(e.target.value))} className="w-full h-1 bg-zinc-800 rounded-lg appearance-none"/>
+                                    <input type="range" min={prop === 'videoScale' ? 0.5 : 0.5} max="2.0" step="0.1" value={config[prop]} onChange={(e) => update(prop, parseFloat(e.target.value))} className="w-full h-1 bg-zinc-800 rounded-lg appearance-none"/>
                                 </div>
                             ))}
                         </div>
@@ -128,17 +163,29 @@
             );
         };
 
-        // --- APP LOGIC ---
+        // --- MAIN APP COMPONENT ---
 
         const App = () => {
             const [mode, setMode] = useState('EDITOR');
-            const [segments, setSegments] = useState([
-                { id: '1', text: "ברוכים הבאים ל-Teleprompter PRO. המערכת מסונכרנת לחלוטין.", duration: 4000, textAlign: 'right' }
-            ]);
+            const [segments, setSegments] = useState([]);
             const [config, setConfig] = useState(() => {
                 const saved = localStorage.getItem('prompter_config');
                 return saved ? { ...DEFAULT_CONFIG, ...JSON.parse(saved) } : DEFAULT_CONFIG;
             });
+
+            // Initialize segments from LocalStorage or default
+            useEffect(() => {
+                const history = localStorage.getItem('teleprompter_history');
+                if (history) {
+                    try {
+                        const parsed = JSON.parse(history);
+                        if (parsed.length > 0) setSegments(parsed[0].segments);
+                    } catch(e) {}
+                }
+                if (segments.length === 0) {
+                    setSegments([{ id: '1', text: "ברוכים הבאים לממשק המקצועי. כתוב כאן את הטקסט שלך.", duration: 4000, textAlign: 'right' }]);
+                }
+            }, []);
 
             return (
                 <div className="h-full w-full bg-zinc-950 text-white overflow-hidden flex flex-col">
@@ -160,9 +207,17 @@
         };
 
         const EditorView = ({ segments, onStart }) => {
+            const [activeTab, setActiveTab] = useState('write');
             const [rawText, setRawText] = useState(segments.map(s => s.text).join('\n'));
             const [textAlign, setTextAlign] = useState('right');
             const [manualAlign, setManualAlign] = useState(false);
+            const [savedScripts, setSavedScripts] = useState([]);
+            const [isProcessing, setIsProcessing] = useState(false);
+
+            useEffect(() => {
+                const history = localStorage.getItem('teleprompter_history');
+                if (history) setSavedScripts(JSON.parse(history));
+            }, []);
 
             useEffect(() => {
                 if (!manualAlign && rawText.trim()) {
@@ -170,34 +225,50 @@
                 }
             }, [rawText, manualAlign]);
 
-            const handleStart = () => {
+            const saveHistory = (newSegments) => {
+                const title = rawText.split('\n')[0].substring(0, 20) || "Untitled";
+                const newSave = {
+                    id: Date.now().toString(),
+                    title,
+                    date: new Date().toISOString(),
+                    segments: newSegments,
+                    rawText,
+                    textAlign
+                };
+                const updated = [newSave, ...savedScripts.slice(0, 19)];
+                setSavedScripts(updated);
+                localStorage.setItem('teleprompter_history', JSON.stringify(updated));
+            };
+
+            const handleLaunch = () => {
                 const lines = rawText.split('\n').filter(l => l.trim());
                 if (!lines.length) return;
                 const finalSegments = lines.map((l, i) => ({
-                    id: `s-${Date.now()}-${i}`,
+                    id: `s-${i}-${Date.now()}`,
                     text: l,
-                    duration: Math.max(2000, l.split(' ').length * 450),
+                    duration: Math.max(2000, l.split(' ').length * 400),
                     textAlign: textAlign
                 }));
+                saveHistory(finalSegments);
                 onStart(finalSegments);
             };
 
             return (
-                <div className="max-w-4xl mx-auto w-full h-full flex flex-col p-6 sm:p-10">
-                    <header className="flex justify-between items-center mb-10 shrink-0">
+                <div className="max-w-5xl mx-auto w-full h-full flex flex-col p-4 sm:p-10">
+                    <header className="flex justify-between items-center mb-8 shrink-0">
                         <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-900/30">
-                                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-900/40">
+                                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                             </div>
                             <div>
-                                <h1 className="text-3xl font-black text-white tracking-tighter leading-none">Teleprompter PRO</h1>
-                                <p className="text-[11px] text-zinc-500 uppercase font-black tracking-[0.2em] mt-2">Professional Broadcast Suite • {APP_VERSION}</p>
+                                <h1 className="text-2xl font-black text-white leading-none tracking-tight uppercase italic">Teleprompter PRO</h1>
+                                <p className="text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1.5 opacity-50">Broadcast Suite Build {APP_VERSION}</p>
                             </div>
                         </div>
                         
-                        <div className="flex bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800 shadow-inner">
+                        <div className="flex bg-zinc-900/50 p-1 rounded-xl border border-white/5">
                             {['left', 'center', 'right'].map(a => (
-                                <button key={a} onClick={() => { setManualAlign(true); setTextAlign(a); }} className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all ${textAlign === a ? 'bg-indigo-600 text-white shadow-xl scale-105' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                                <button key={a} onClick={() => { setManualAlign(true); setTextAlign(a); }} className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${textAlign === a ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}>
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         {a === 'left' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h10M4 18h16" />}
                                         {a === 'center' && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M7 12h10M4 18h16" />}
@@ -208,20 +279,47 @@
                         </div>
                     </header>
 
-                    <main className="flex-1 min-h-0 bg-zinc-900 rounded-[2.5rem] border border-zinc-800 shadow-2xl p-8 flex flex-col relative overflow-hidden backdrop-blur-sm border-white/5">
-                        <textarea 
-                            dir="auto"
-                            className="flex-1 bg-zinc-950 p-10 rounded-3xl border border-zinc-800 text-zinc-100 font-mono mb-8 resize-none outline-none focus:ring-2 focus:ring-indigo-500/30 text-2xl leading-relaxed transition-all scrollbar-hide"
-                            style={{ textAlign }} 
-                            value={rawText}
-                            onChange={e => setRawText(e.target.value)}
-                            placeholder="Type or paste your broadcast script here..."
-                        />
-                        <div className="flex justify-end gap-5 shrink-0">
-                            <button onClick={() => setRawText('')} className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded-2xl font-bold transition-all active:scale-95">Reset</button>
-                            <button onClick={handleStart} className="px-16 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black shadow-2xl shadow-indigo-600/30 transition-all hover:-translate-y-1 active:scale-95">LAUNCH PROMPTER</button>
+                    <div className="flex-1 min-h-0 bg-zinc-900 rounded-[2rem] border border-white/5 shadow-2xl p-8 flex flex-col relative overflow-hidden backdrop-blur-sm">
+                        <div className="flex gap-4 mb-6 shrink-0">
+                            {['write', 'history'].map(tab => (
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-zinc-800 text-white border border-white/10' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                                    {tab}
+                                </button>
+                            ))}
                         </div>
-                    </main>
+
+                        {activeTab === 'write' ? (
+                            <textarea 
+                                dir="auto"
+                                className="flex-1 bg-zinc-950/50 p-10 rounded-3xl border border-white/5 text-zinc-100 font-mono mb-8 resize-none outline-none focus:ring-2 focus:ring-indigo-500/20 text-2xl leading-relaxed transition-all scrollbar-hide"
+                                style={{ textAlign }} 
+                                value={rawText}
+                                onChange={e => setRawText(e.target.value)}
+                                placeholder="Paste script content..."
+                            />
+                        ) : (
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
+                                {savedScripts.map(s => (
+                                    <div key={s.id} onClick={() => { setRawText(s.rawText); setTextAlign(s.textAlign || 'right'); setActiveTab('write'); }} className="p-4 bg-zinc-950/50 border border-white/5 rounded-2xl cursor-pointer hover:border-indigo-500/30 transition-all group">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-zinc-200 group-hover:text-indigo-400">{s.title}</span>
+                                            <span className="text-[10px] text-zinc-600">{new Date(s.date).toLocaleDateString()}</span>
+                                        </div>
+                                        <p className="text-xs text-zinc-500 truncate mt-1 opacity-60">{s.rawText}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-center shrink-0">
+                            <div className="flex gap-3">
+                                <button onClick={() => setRawText('')} className="px-6 py-4 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-500 hover:text-white rounded-2xl font-bold transition-all active:scale-95">Clear</button>
+                            </div>
+                            <button onClick={handleLaunch} className="px-14 py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black shadow-2xl shadow-indigo-600/30 transition-all hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-xs">
+                                Launch Teleprompter
+                            </button>
+                        </div>
+                    </div>
                 </div>
             );
         };
@@ -231,11 +329,14 @@
             const [elapsedTime, setElapsedTime] = useState(0);
             const [showSettings, setShowSettings] = useState(false);
             const [speed, setSpeed] = useState(1);
+            const [isRecording, setIsRecording] = useState(false);
             
             const containerRef = useRef();
             const lastTimeRef = useRef();
             const segmentRefs = useRef([]);
             const videoRef = useRef();
+            const mediaRecorderRef = useRef();
+            const chunksRef = useRef([]);
 
             const totalDuration = useMemo(() => segments.reduce((acc, s) => acc + s.duration, 0), [segments]);
             const segmentTimeMap = useMemo(() => {
@@ -246,13 +347,15 @@
                 });
             }, [segments]);
 
+            // Camera Engine
             useEffect(() => {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1920, height: 1080 }, audio: true })
                     .then(stream => { if (videoRef.current) videoRef.current.srcObject = stream; })
-                    .catch(() => console.warn("Camera access inhibited"));
+                    .catch(() => console.warn("Camera check failed"));
                 return () => { if (videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop()); };
             }, []);
 
+            // Animation Loop (High Precision)
             useEffect(() => {
                 const animate = (time) => {
                     if (lastTimeRef.current !== undefined && isPlaying) {
@@ -266,7 +369,7 @@
                 return () => cancelAnimationFrame(id);
             }, [isPlaying, speed, totalDuration]);
 
-            // Precise logic from useTeleprompter.ts
+            // ADVANCED SCROLL LOGIC: Calculates target scroll based on Guide Offset ratio
             useEffect(() => {
                 if (!isPlaying || !containerRef.current) return;
                 const idx = segmentTimeMap.findIndex(m => elapsedTime >= m.start && elapsedTime < m.end);
@@ -276,26 +379,49 @@
                     const offsetRatio = config.guideOffset / 100;
                     const m = segmentTimeMap[idx];
                     
-                    const progress = (elapsedTime - m.start) / m.duration;
-                    const targetScroll = el.offsetTop + (el.clientHeight * progress) - (containerHeight * offsetRatio);
+                    const progressInSegment = (elapsedTime - m.start) / m.duration;
+                    // Formula: el.offsetTop + (exact_y_within_el) - (screen_guide_y)
+                    const targetScroll = el.offsetTop + (el.clientHeight * progressInSegment) - (containerHeight * offsetRatio);
                     
                     containerRef.current.scrollTo({ top: targetScroll, behavior: 'auto' });
                 }
             }, [elapsedTime, isPlaying, segmentTimeMap, config.guideOffset]);
 
+            const toggleRecording = () => {
+                if (isRecording) {
+                    mediaRecorderRef.current.stop();
+                    setIsRecording(false);
+                } else {
+                    const stream = videoRef.current.srcObject;
+                    if (!stream) return;
+                    chunksRef.current = [];
+                    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                    recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+                    recorder.onstop = () => {
+                        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url; a.download = `rec-${Date.now()}.webm`; a.click();
+                    };
+                    recorder.start();
+                    mediaRecorderRef.current = recorder;
+                    setIsRecording(true);
+                }
+            };
+
             return (
                 <div className="fixed inset-0 bg-black flex flex-col text-white z-[1000] overflow-hidden">
-                    <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-25 z-0 grayscale" 
-                           style={{ transform: 'scaleX(-1)', filter: `brightness(${config.brightness}) contrast(${config.contrast}) saturate(${config.saturation})` }} />
+                    {/* VIDEO OVERLAY */}
+                    <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-30 z-0 grayscale" 
+                           style={{ transform: `scaleX(-1) scale(${config.videoScale})`, filter: `brightness(${config.brightness}) contrast(${config.contrast}) saturate(${config.saturation})` }} />
                     <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-[5]" />
 
                     <SettingsPanel config={config} setConfig={setConfig} showSettings={showSettings} setShowSettings={setShowSettings} />
 
-                    <div className="absolute top-12 left-12 z-30 font-mono text-7xl font-black text-white/10 select-none tracking-tighter tabular-nums">{formatTime(elapsedTime)}</div>
+                    <div className="absolute top-12 left-12 z-30 font-mono text-8xl font-black text-white/10 select-none tracking-tighter tabular-nums">{formatTime(elapsedTime)}</div>
 
                     <div className="flex-1 relative overflow-hidden z-10">
                         <div ref={containerRef} className={`h-full overflow-y-auto no-scrollbar relative ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
-                            <div className="py-[100vh] px-16 max-w-6xl mx-auto">
+                            <div className="py-[100vh] px-16 max-w-7xl mx-auto">
                                 {segments.map((s, i) => {
                                     const m = segmentTimeMap[i];
                                     const active = elapsedTime >= m.start && elapsedTime < m.end;
@@ -306,8 +432,8 @@
                                                  opacity: active ? 1 : config.guideOpacity, 
                                                  textAlign: s.textAlign || 'center', 
                                                  fontSize: config.fontSize + 'px', 
-                                                 transform: active ? 'scale(1.1)' : 'scale(0.9)',
-                                                 filter: active ? `drop-shadow(0 0 20px ${config.primaryColor}30)` : 'none'
+                                                 transform: active ? 'scale(1.08)' : 'scale(0.92)',
+                                                 filter: active ? `drop-shadow(0 0 30px ${config.primaryColor}40)` : 'none'
                                              }}>
                                             {s.text}
                                         </div>
@@ -315,27 +441,31 @@
                                 })}
                             </div>
                         </div>
-                        {/* Dynamic guide line with exact offset */}
-                        <div className="absolute inset-x-0 pointer-events-none z-20 transition-all duration-500 ease-in-out" style={{ top: `${config.guideOffset}%` }}>
-                            <div className="w-full h-[3px] bg-red-600/40 shadow-[0_0_25px_rgba(220,38,38,0.6)]" />
+                        {/* THE DYNAMIC GUIDE LINE */}
+                        <div className="absolute inset-x-0 pointer-events-none z-20 transition-all duration-300" style={{ top: `${config.guideOffset}%` }}>
+                            <div className="w-full h-[2px] bg-red-600/40 shadow-[0_0_25px_rgba(220,38,38,0.7)]" />
                         </div>
                     </div>
 
-                    <div className="p-10 bg-zinc-950/98 border-t border-zinc-900 flex justify-center items-center gap-16 z-[2000] backdrop-blur-3xl shadow-[0_-30px_60px_rgba(0,0,0,0.8)] border-white/5">
-                        <button onClick={onClose} className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center text-zinc-500 hover:text-white transition-all hover:bg-zinc-800 active:scale-90">✕</button>
+                    {/* CONTROL BAR */}
+                    <div className="p-10 glass-panel border-t border-white/5 flex justify-center items-center gap-14 z-[2000] shadow-[0_-30px_60px_rgba(0,0,0,0.8)]">
+                        <button onClick={onClose} className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center text-zinc-500 hover:text-white transition-all hover:bg-zinc-800 active:scale-90">✕</button>
                         
                         <div className="flex flex-col items-center gap-3">
-                            <span className="text-[10px] uppercase font-black text-zinc-600 tracking-[0.3em]">Speed Control</span>
-                            <input type="range" min="0.1" max="2.5" step="0.1" value={speed} onChange={e => setSpeed(parseFloat(e.target.value))} className="w-60 h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer" />
+                            <span className="text-[10px] uppercase font-black text-zinc-600 tracking-[0.4em]">Flow Speed</span>
+                            <input type="range" min="0.1" max="2.5" step="0.1" value={speed} onChange={e => setSpeed(parseFloat(e.target.value))} className="w-64 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer" />
                         </div>
 
-                        <button onClick={() => setIsPlaying(!isPlaying)} className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl shadow-2xl transition-all active:scale-90 hover:scale-105 ${isPlaying ? 'bg-indigo-600 shadow-indigo-600/30' : 'bg-emerald-600 shadow-emerald-600/30'}`}>
+                        <button onClick={() => setIsPlaying(!isPlaying)} className={`w-24 h-24 rounded-3xl flex items-center justify-center text-4xl shadow-2xl transition-all active:scale-90 hover:scale-105 ${isPlaying ? 'bg-indigo-600 shadow-indigo-600/30' : 'bg-emerald-600 shadow-emerald-600/30'}`}>
                             {isPlaying ? '⏸' : '▶'}
                         </button>
 
-                        <button onClick={() => { setElapsedTime(0); setIsPlaying(false); }} className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center text-zinc-500 hover:text-white transition-all hover:bg-zinc-800 active:scale-90">⏹</button>
+                        <button onClick={() => { setElapsedTime(0); setIsPlaying(false); }} className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center text-zinc-500 hover:text-white transition-all hover:bg-zinc-800 active:scale-90">⏹</button>
                         
-                        <button onClick={() => setShowSettings(!showSettings)} className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl transition-all ${showSettings ? 'bg-indigo-600 text-white shadow-xl' : 'bg-zinc-900 text-zinc-500 hover:text-white'}`}>⚙️</button>
+                        <div className="flex gap-4">
+                            <button onClick={toggleRecording} className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl transition-all active:scale-90 ${isRecording ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-600/40' : 'bg-zinc-900 text-zinc-600 hover:text-red-500'}`}>REC</button>
+                            <button onClick={() => setShowSettings(!showSettings)} className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl transition-all ${showSettings ? 'bg-indigo-600 text-white shadow-xl' : 'bg-zinc-900 text-zinc-500 hover:text-white'}`}>⚙️</button>
+                        </div>
                     </div>
                 </div>
             );
