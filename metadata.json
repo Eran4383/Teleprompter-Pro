@@ -1,6 +1,6 @@
 {
   "name": "Teleprompter PRO",
-  "description": "Teleprompter PRO v1.2.20 - Stability updates and deployment fixes.",
+  "description": "Teleprompter PRO v1.2.27 - Atomic logic for camera, scrolling, and settings. Production ready with verified modular architecture.",
   "requestFramePermissions": [
     "camera",
     "microphone"
