@@ -1,20 +1,20 @@
 
 import { ScriptSegment } from "./types";
 
-export const APP_VERSION = "v1.2.29";
+export const APP_VERSION = "v1.2.31";
 
 const createSegment = (id: string, text: string, duration: number): ScriptSegment => ({
     id,
     text,
     words: text.split(' ').map(w => ({ text: w })),
-    duration
+    duration,
+    textAlign: 'right'
 });
 
 export const DEFAULT_SCRIPT: ScriptSegment[] = [
-    createSegment('1', "ברוכים הבאים ל-Teleprompter PRO.", 2000),
-    createSegment('2', "עכשיו עם תמיכה מלאה בעברית ויישור טקסט אוטומטי.", 3000),
-    createSegment('3', "ניתן לשנות יישור באופן ידני בתפריט העריכה.", 3500),
-    createSegment('4', "Try the new auto-alignment features.", 4000),
+    createSegment('1', "ברוכים הבאים לגרסה המקצועית של Teleprompter PRO.", 3000),
+    createSegment('2', "המערכת מזהה עברית באופן אוטומטי ומיישרת את הטקסט לימין.", 4000),
+    createSegment('3', "ניתן לשנות את היישור, הצבע והתזמון של כל סגמנט.", 3500),
 ];
 
 export const MIN_DURATION = 100;
