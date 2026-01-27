@@ -21,9 +21,21 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const camera = useCamera();
     const prompter = useTeleprompter(segments);
     const [showSettings, setShowSettings] = useState(false);
+    // Fix: Corrected PromptConfig initialization to include missing required properties
     const [config, setConfig] = useState<PromptConfig>({
-        fontSize: 54, isMirrored: false, overlayColor: '#000000', guideOpacity: 0.2,
-        showTimer: true, videoFilter: 'none', videoScale: 1.0, brightness: 1.0, contrast: 1.0, saturation: 1.0
+        fontSize: 54, 
+        isMirrored: false, 
+        overlayColor: '#000000', 
+        guideOpacity: 0.2,
+        showTimer: true, 
+        videoFilter: 'none', 
+        videoScale: 1.0, 
+        brightness: 1.0, 
+        contrast: 1.0, 
+        saturation: 1.0,
+        primaryColor: '#6366f1',
+        ghostColor: '#a1a1aa',
+        guideOffset: 50
     });
 
     const videoFilters = `brightness(${config.brightness}) contrast(${config.contrast}) saturate(${config.saturation})`;
