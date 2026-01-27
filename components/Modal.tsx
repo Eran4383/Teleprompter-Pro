@@ -23,6 +23,7 @@ export const Modal: React.FC<ModalProps> = ({
             <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm p-5 animate-modal-pop" onClick={e => e.stopPropagation()}>
                 <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
                 {message && <p className="text-zinc-400 text-sm mb-4 leading-relaxed">{message}</p>}
+                
                 {isInput && onInputChange && (
                     <input 
                         type="text" 
@@ -32,6 +33,7 @@ export const Modal: React.FC<ModalProps> = ({
                         autoFocus
                     />
                 )}
+
                 <div className="flex justify-end gap-2 mt-2">
                     <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
                     {onConfirm && (

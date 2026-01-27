@@ -54,23 +54,18 @@ export const useScriptEditor = (
     };
 
     const syncSegments = () => {
-        const lines = rawText.split('\n').filter(l => l.trim());
-        const newSegments = lines.map((line, i) => {
-            const existing = segments.find(s => s.text === line);
-            return {
-                id: existing?.id || `seg-${Date.now()}-${i}`,
-                text: line,
-                words: line.split(' ').map(w => ({ text: w })),
-                duration: existing?.duration || Math.max(1000, line.split(' ').length * 500)
-            };
-        });
+        const newSegments = rawText.split('\n').filter(l => l.trim()).map((line, i) => ({
+            id: segments[i]?.text === line ? segments[i].id : `seg-${Date.now()}-${i}`,
+            text: line,
+            words: line.split(' ').map(w => ({ text: w })),
+            duration: segments[i]?.text === line ? segments[i].duration : Math.max(1000, line.split(' ').length * 500)
+        }));
         onSegmentsChange(newSegments);
         saveToHistory(newSegments);
         return newSegments;
     };
 
     const handleAIOptimize = async () => {
-        if (!rawText.trim()) return;
         setIsProcessing(true);
         try {
             const opt = await optimizeScript(rawText);
@@ -78,13 +73,11 @@ export const useScriptEditor = (
             setRawText(opt.map(s => s.text).join('\n'));
             saveToHistory(opt);
             setActiveTab('tune');
-        } catch (e) { 
-            setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to optimize script.", type: 'danger' }); 
-        } finally { setIsProcessing(false); }
+        } catch (e) { setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to optimize script.", type: 'danger' }); }
+        finally { setIsProcessing(false); }
     };
 
     const handleAIGenerate = async () => {
-        if (!topicInput.trim()) return;
         setIsProcessing(true);
         try {
             const gen = await generateScriptFromTopic(topicInput);
@@ -93,14 +86,13 @@ export const useScriptEditor = (
             saveToHistory(gen);
             setTopicInput('');
             setActiveTab('tune');
-        } catch (e) { 
-            setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to generate script.", type: 'danger' }); 
-        } finally { setIsProcessing(false); }
+        } catch (e) { setModalConfig({ isOpen: true, title: "AI Error", message: "Failed to generate script.", type: 'danger' }); }
+        finally { setIsProcessing(false); }
     };
 
     return {
         activeTab, setActiveTab, rawText, setRawText, isProcessing, topicInput, setTopicInput, toast, savedScripts,
         currentScriptId, setCurrentScriptId, modalConfig, setModalConfig, tempInput, setTempInput,
-        showToast, syncSegments, handleAIOptimize, handleAIGenerate, saveToHistory, loadHistory
+        showToast, syncSegments, handleAIOptimize, handleAIGenerate, onStartPrompt, saveToHistory, loadHistory, onSegmentsChange
     };
 };
