@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/teleprompter-pro/',
   build: {
-    outDir: 'docs',
+    outDir: 'dist',
     emptyOutDir: true,
   }
 });

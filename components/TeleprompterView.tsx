@@ -41,17 +41,9 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-    // Fix: Added defensive checks for localStorage and JSON.parse to address reported argument errors on lines 64-65
+    // Initializing config with robust error handling and explicit arguments to fix reported compiler errors on lines 73-74
     const [config, setConfig] = useState<PromptConfig>(() => {
-        try {
-            const saved = window.localStorage.getItem('prompter_config');
-            if (saved) {
-                return JSON.parse(saved);
-            }
-        } catch (e) {
-            console.error("Failed to load prompter config", e);
-        }
-        return {
+        const fallbackConfig: PromptConfig = {
             fontSize: DEFAULTS.fontSize,
             isMirrored: false,
             overlayColor: '#000000',
@@ -66,6 +58,17 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             primaryColor: '#ffffff',
             ghostColor: '#52525b'
         };
+
+        try {
+            const saved = window.localStorage.getItem('prompter_config');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return { ...fallbackConfig, ...parsed };
+            }
+        } catch (e) {
+            console.error("Failed to load prompter config", e);
+        }
+        return fallbackConfig;
     });
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -250,7 +253,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         lastTimeRef.current = undefined;
     };
 
-    // Fix: Defined missing handleUserInteraction function to handle manual scroll takeover
     const handleUserInteraction = () => {
         isManualScroll.current = true;
         setIsPlaying(false);
