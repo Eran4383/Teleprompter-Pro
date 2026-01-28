@@ -30,7 +30,10 @@ jobs:
         run: npm install        # <--- התיקון: שינינו מ-ci ל-install
         
       - name: Build Project
-        run: npm run build
+        run: |
+          npm run build
+          mv dist/prod.html dist/index.html
+          touch dist/.nojekyll
         
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
