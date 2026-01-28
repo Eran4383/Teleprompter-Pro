@@ -27,18 +27,20 @@ const DEFAULTS = {
 };
 
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [elapsedTime, setElapsedTime] = useState(0);
-    const [speedMultiplier, setSpeedMultiplier] = useState(1);
+    // Added explicit initial values and types to state hooks
+    const [isPlaying, setIsPlaying] = useState<boolean>(false);
+    const [elapsedTime, setElapsedTime] = useState<number>(0);
+    const [speedMultiplier, setSpeedMultiplier] = useState<number>(1);
     
-    const [isCameraActive, setIsCameraActive] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
+    // Explicitly provided initial values to fix "Expected 1 arguments, but got 0" on lines 76-77
+    const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+    const [isRecording, setIsRecording] = useState<boolean>(false);
     const [cameraCapabilities, setCameraCapabilities] = useState<MediaTrackCapabilities | null>(null);
     const [cameraSettings, setCameraSettings] = useState<MediaTrackSettings | null>(null);
     
-    const [showSettings, setShowSettings] = useState(false);
+    const [showSettings, setShowSettings] = useState<boolean>(false);
     const [settingsPos, setSettingsPos] = useState({ x: 20, y: 80 }); 
-    const [isDragging, setIsDragging] = useState(false);
+    const [isDragging, setIsDragging] = useState<boolean>(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
     // Initializing config with robust error handling and explicit arguments to fix reported compiler errors on lines 73-74
@@ -73,10 +75,11 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    const requestRef = useRef<number>();
-    const lastTimeRef = useRef<number>();
+    // Added explicit undefined as initial value to satisfy potential strict TypeScript useRef constraints
+    const requestRef = useRef<number | undefined>(undefined);
+    const lastTimeRef = useRef<number | undefined>(undefined);
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
-    const isManualScroll = useRef(false);
+    const isManualScroll = useRef<boolean>(false);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
