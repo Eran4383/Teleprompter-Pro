@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/teleprompter-pro/',
+  base: './',  // <--- זה התיקון הקריטי! (במקום השם המלא)
   build: {
     outDir: 'dist',
     emptyOutDir: true,
