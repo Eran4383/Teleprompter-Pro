@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { PromptConfig, ScriptSegment } from '../types';
 
@@ -27,12 +26,10 @@ const DEFAULTS = {
 };
 
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
-    // Added explicit initial values and types to state hooks
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const [elapsedTime, setElapsedTime] = useState<number>(0);
     const [speedMultiplier, setSpeedMultiplier] = useState<number>(1);
     
-    // Explicitly provided initial values to fix "Expected 1 arguments, but got 0" on lines 76-77
     const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [cameraCapabilities, setCameraCapabilities] = useState<MediaTrackCapabilities | null>(null);
@@ -43,7 +40,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-    // Initializing config with robust error handling and explicit arguments to fix reported compiler errors on lines 73-74
     const [config, setConfig] = useState<PromptConfig>(() => {
         const fallbackConfig: PromptConfig = {
             fontSize: DEFAULTS.fontSize,
@@ -75,9 +71,10 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    // Added explicit undefined as initial value to satisfy potential strict TypeScript useRef constraints
-    const requestRef = useRef<number | undefined>(undefined);
+    
     const lastTimeRef = useRef<number | undefined>(undefined);
+    const requestRef = useRef<number | undefined>(undefined);
+
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
     const isManualScroll = useRef<boolean>(false);
 
@@ -102,15 +99,15 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
         setIsDragging(true);
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        const clientX = 'touches' in e ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
         setDragOffset({ x: clientX - settingsPos.x, y: clientY - settingsPos.y });
     };
 
     const handleDragMove = (e: MouseEvent | TouchEvent) => {
         if (!isDragging) return;
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+        const clientX = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+        const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
         setSettingsPos({ x: clientX - dragOffset.x, y: clientY - dragOffset.y });
     };
 
@@ -158,16 +155,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 }
             } catch (error) { console.error(error); }
         }
-    };
-
-    const applyCameraConstraint = async (constraint: string, value: any) => {
-        const stream = videoRef.current?.srcObject as MediaStream;
-        if (!stream) return;
-        const track = stream.getVideoTracks()[0];
-        try {
-            await track.applyConstraints({ advanced: [{ [constraint]: value }] });
-            setCameraSettings(track.getSettings());
-        } catch (e) { console.error(e); }
     };
 
     const startRecording = () => {
