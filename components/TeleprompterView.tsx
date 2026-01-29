@@ -25,6 +25,8 @@ const DEFAULTS = {
     guideOffset: 50,
 };
 
+type TextLayoutMode = 'rtl' | 'center' | 'ltr';
+
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -39,6 +41,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const [settingsPos, setSettingsPos] = useState({ x: 20, y: 80 }); 
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+    const [textLayout, setTextLayout] = useState<TextLayoutMode>('rtl');
 
     const [config, setConfig] = useState<PromptConfig>(() => {
         const fallbackConfig: PromptConfig = {
@@ -248,6 +252,26 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         setIsPlaying(false);
     };
 
+    const toggleTextLayout = () => {
+        setTextLayout(prev => {
+            if (prev === 'rtl') return 'center';
+            if (prev === 'center') return 'ltr';
+            return 'rtl';
+        });
+    };
+
+    const getLayoutLabel = () => {
+        if (textLayout === 'rtl') return 'RTL';
+        if (textLayout === 'center') return 'MID';
+        return 'LTR';
+    };
+
+    const getLayoutIcon = () => {
+        if (textLayout === 'rtl') return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M10 12h10M4 18h16" /></svg>;
+        if (textLayout === 'center') return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M8 12h8M4 18h16" /></svg>;
+        return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h16" /></svg>;
+    };
+
     const videoFilters = [
         config.videoFilter !== 'none' ? FILTER_STYLES[config.videoFilter].filter : '',
         `brightness(${config.brightness}) contrast(${config.contrast}) saturate(${config.saturation})`
@@ -300,12 +324,35 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 <div className="absolute inset-x-0 pointer-events-none z-20 flex items-center transition-all duration-300" style={{ top: `${config.guideOffset}%` }}>
                     <div className="w-full h-px bg-red-600/40 shadow-[0_0_10px_rgba(220,38,38,0.5)]"/>
                 </div>
-                <div ref={containerRef} onWheel={handleUserInteraction} onTouchStart={handleUserInteraction} onMouseDown={handleUserInteraction} onScroll={() => !isPlaying && syncTimeFromScroll()} className={`h-full overflow-y-auto relative no-scrollbar ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
-                    <div className="py-[100vh] px-6 max-w-4xl mx-auto">
+                <div 
+                    ref={containerRef} 
+                    onWheel={handleUserInteraction} 
+                    onTouchStart={handleUserInteraction} 
+                    onMouseDown={handleUserInteraction} 
+                    onScroll={() => !isPlaying && syncTimeFromScroll()} 
+                    className={`h-full overflow-y-auto relative no-scrollbar ${config.isMirrored ? 'scale-x-[-1]' : ''}`}
+                >
+                    <div 
+                        className="py-[100vh] px-6 max-w-4xl mx-auto"
+                        style={{ 
+                            textAlign: textLayout === 'center' ? 'center' : (textLayout === 'rtl' ? 'right' : 'left'),
+                            direction: textLayout === 'rtl' ? 'rtl' : 'ltr'
+                        }}
+                    >
                         {segments.map((seg, idx) => {
                             const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
                             return (
-                                <div key={seg.id} ref={el => { segmentRefs.current[idx] = el; }} className="mb-14 font-black text-center leading-tight transition-all duration-500" dir="auto" style={{ fontSize: config.fontSize + 'px', opacity: isActive ? 1 : config.guideOpacity, color: isActive ? config.primaryColor : config.ghostColor, transform: isActive ? 'scale(1.05)' : 'scale(0.95)' }}>
+                                <div 
+                                    key={seg.id} 
+                                    ref={el => { segmentRefs.current[idx] = el; }} 
+                                    className="mb-14 font-black leading-tight transition-all duration-500" 
+                                    style={{ 
+                                        fontSize: config.fontSize + 'px', 
+                                        opacity: isActive ? 1 : config.guideOpacity, 
+                                        color: isActive ? config.primaryColor : config.ghostColor, 
+                                        transform: isActive ? 'scale(1.05)' : 'scale(0.95)' 
+                                    }}
+                                >
                                     {seg.text}
                                 </div>
                             );
@@ -314,18 +361,32 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             </div>
 
-            <div className="bg-zinc-950/95 border-t border-zinc-900 px-4 py-4 z-50 flex items-center justify-center gap-6 backdrop-blur-xl">
-                <button onClick={onClose} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors">✕</button>
+            <div className="bg-zinc-950/95 border-t border-zinc-900 px-4 py-4 z-50 flex items-center justify-center gap-3 sm:gap-6 backdrop-blur-xl">
+                <button onClick={onClose} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors" title="Exit">✕</button>
+                
                 <div className="flex flex-col items-center">
                     <span className="text-[9px] uppercase font-bold text-zinc-600 mb-1">Speed</span>
-                    <input type="range" min="0.1" max="2.5" step="0.1" value={speedMultiplier} onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} className="w-32 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg cursor-pointer" />
+                    <input type="range" min="0.1" max="2.5" step="0.1" value={speedMultiplier} onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} className="w-20 sm:w-32 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg cursor-pointer" />
                 </div>
-                <button onClick={handlePlayPause} className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}>
+                
+                <button 
+                    onClick={toggleTextLayout} 
+                    className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-all flex flex-col items-center justify-center gap-1 active:scale-95 shadow-inner"
+                    title={`Layout: ${textLayout.toUpperCase()}`}
+                >
+                    {getLayoutIcon()}
+                    <span className="text-[8px] font-bold tracking-tighter">{getLayoutLabel()}</span>
+                </button>
+
+                <button onClick={handlePlayPause} className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}>
                     {isPlaying ? '⏸' : '▶'}
                 </button>
-                <button onClick={() => { setIsPlaying(false); setElapsedTime(0); }} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors">⏹</button>
-                <button onClick={() => setShowSettings(!showSettings)} className={`p-3 rounded-full transition-colors ${showSettings ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-500 hover:text-white'}`}>⚙️</button>
-                <button onClick={isRecording ? stopRecording : (isCameraActive ? startRecording : toggleCamera)} className={`p-3 rounded-full transition-colors ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-zinc-900 text-red-500 hover:text-red-400'}`}>
+                
+                <button onClick={() => { setIsPlaying(false); setElapsedTime(0); }} className="p-3 bg-zinc-900 rounded-full text-zinc-500 hover:text-white transition-colors" title="Stop & Reset">⏹</button>
+                
+                <button onClick={() => setShowSettings(!showSettings)} className={`p-3 rounded-full transition-colors ${showSettings ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-500 hover:text-white'}`} title="Settings">⚙️</button>
+                
+                <button onClick={isRecording ? stopRecording : (isCameraActive ? startRecording : toggleCamera)} className={`p-3 rounded-full transition-colors ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-zinc-900 text-red-500 hover:text-red-400'}`} title="Record">
                     {isRecording ? 'REC' : (isCameraActive ? '●' : '📷')}
                 </button>
             </div>
