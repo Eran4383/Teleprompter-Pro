@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,20 +31,10 @@
             animation: modal-pop 0.15s ease-out forwards;
         }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3"
-  }
-}
-</script>
 </head>
 <body>
     <div id="root"></div>
-    <!-- Explicitly entry point for build tools -->
-    <script type="module" src="./index.tsx"></script>
+    <!-- Vite יטפל בייבוא של index.tsx וכל התלויות שלו -->
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
