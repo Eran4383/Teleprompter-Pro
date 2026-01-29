@@ -300,7 +300,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                         showToast("History imported successfully!");
                         setActiveTab('history');
                     } else if (data && typeof data === 'object') {
-                        // Single script import (bonus support)
+                        //  Single script import (bonus support)
                         const script = data as SavedScript;
                         if (script.segments && script.rawText) {
                             const updated = [script, ...savedScripts];
