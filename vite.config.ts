@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/teleprompter-pro/',
+  base: './', // <--- זה התיקון שמונע את ה-404 של הקבצים
   build: {
     outDir: 'dist',
     emptyOutDir: true,
