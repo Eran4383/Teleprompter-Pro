@@ -1,6 +1,7 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { ScriptSegment } from "../types";
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const hydrateSegment = (id: string, text: string, duration: number): ScriptSegment => {
     // Safety fallback: Ensure duration is at least reasonable for the word count
@@ -15,15 +16,9 @@ const hydrateSegment = (id: string, text: string, duration: number): ScriptSegme
     };
 };
 
-/**
- * Optimizes a script by breaking it into segments and assigning durations.
- * Uses 'gemini-3-pro-preview' for complex text tasks.
- */
 export const optimizeScript = async (text: string): Promise<ScriptSegment[]> => {
     try {
-        // ALWAYS use process.env.API_KEY and initialize inside the function
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
+        // Switching to 'gemini-3-pro-preview' for better logical reasoning on timing and segmentation
         const response = await ai.models.generateContent({
             model: "gemini-3-pro-preview",
             contents: `You are an expert teleprompter technician. Your goal is to break text into readable segments and assign PRECISE timing.
@@ -67,14 +62,8 @@ export const optimizeScript = async (text: string): Promise<ScriptSegment[]> => 
     }
 };
 
-/**
- * Generates a script from a topic using Gemini 3 Pro.
- */
 export const generateScriptFromTopic = async (topic: string): Promise<ScriptSegment[]> => {
     try {
-        // ALWAYS use process.env.API_KEY and initialize inside the function
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
         const response = await ai.models.generateContent({
             model: "gemini-3-pro-preview",
             contents: `Write a short, professional video script about: "${topic}".
