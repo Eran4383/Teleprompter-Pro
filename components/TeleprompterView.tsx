@@ -34,7 +34,9 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     // Camera & Recording State
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
+    // Fix: explicitly provide null to useState to satisfy React type definitions
     const [cameraCapabilities, setCameraCapabilities] = useState<MediaTrackCapabilities | null>(null);
+    // Fix: explicitly provide null to useState to satisfy React type definitions
     const [cameraSettings, setCameraSettings] = useState<MediaTrackSettings | null>(null);
     
     // Settings UI State
@@ -83,16 +85,16 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     // Drag Logic
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
         setIsDragging(true);
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        const clientX = 'touches' in e ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
         setDragOffset({ x: clientX - settingsPos.x, y: clientY - settingsPos.y });
     };
 
     const handleDragMove = (e: MouseEvent | TouchEvent) => {
         if (!isDragging) return;
         e.preventDefault(); 
-        const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+        const clientX = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+        const clientY = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
         setSettingsPos({ x: clientX - dragOffset.x, y: clientY - dragOffset.y });
     };
 
@@ -151,7 +153,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         setCameraCapabilities(track.getCapabilities());
                         setCameraSettings(track.getSettings());
                     } else {
-                        setCameraCapabilities({}); 
+                        // Fix: use null or cast properly for capabilities fallback
+                        setCameraCapabilities(null); 
                     }
                 }
             } catch (error) {
@@ -392,6 +395,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         }
     };
 
+    // Fix: cast cameraCapabilities to any for non-standard properties like torch and zoom
     const hasCameraControls = cameraCapabilities && ((cameraCapabilities as any).torch || (cameraCapabilities as any).zoom || (cameraCapabilities as any).exposureCompensation);
 
     // CSS Filters string
@@ -529,21 +533,23 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         <div className="space-y-3 pt-2 border-t border-zinc-800">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Hardware Controls</h3>
                             {!hasCameraControls && <p className="text-zinc-600 italic">No hardware controls available.</p>}
-                            {cameraCapabilities && cameraCapabilities.torch && (
+                            {/* Fix: cast cameraCapabilities and cameraSettings to any for non-standard properties */}
+                            {cameraCapabilities && (cameraCapabilities as any).torch && (
                                 <div className="flex items-center justify-between">
                                     <span className="text-zinc-400">Flash</span>
-                                    <button onClick={() => applyCameraConstraint('torch', !cameraSettings?.torch)} className={`px-3 py-1 rounded-full ${cameraSettings?.torch ? 'bg-yellow-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
-                                        {cameraSettings?.torch ? 'ON' : 'OFF'}
+                                    <button onClick={() => applyCameraConstraint('torch', !(cameraSettings as any)?.torch)} className={`px-3 py-1 rounded-full ${(cameraSettings as any)?.torch ? 'bg-yellow-500 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                                        {(cameraSettings as any)?.torch ? 'ON' : 'OFF'}
                                     </button>
                                 </div>
                             )}
-                            {cameraCapabilities && cameraCapabilities.zoom && (
+                            {/* Fix: cast cameraCapabilities and cameraSettings to any for zoom property */}
+                            {cameraCapabilities && (cameraCapabilities as any).zoom && (
                                  <div className="flex flex-col gap-1">
                                     <div className="flex justify-between text-zinc-400">
                                         <span>Optical Zoom</span>
-                                        <span>{cameraSettings?.zoom?.toFixed(1)}x</span>
+                                        <span>{(cameraSettings as any)?.zoom?.toFixed(1)}x</span>
                                     </div>
-                                    <input type="range" min={cameraCapabilities.zoom.min} max={cameraCapabilities.zoom.max} step={0.1} value={cameraSettings?.zoom || 1} onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/>
+                                    <input type="range" min={(cameraCapabilities as any).zoom.min} max={(cameraCapabilities as any).zoom.max} step={0.1} value={(cameraSettings as any)?.zoom || 1} onChange={(e) => applyCameraConstraint('zoom', parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 bg-zinc-700 rounded-lg appearance-none"/>
                                 </div>
                             )}
                         </div>
@@ -566,7 +572,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         {segments.map((seg, idx) => {
                             const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
                             return (
-                                <div key={seg.id} ref={el => segmentRefs.current[idx] = el} 
+                                // Fix: wrap ref assignment in braces to return void, satisfying React Ref types
+                                <div key={seg.id} ref={el => { segmentRefs.current[idx] = el; }} 
                                     className={`mb-10 font-bold text-center leading-[1.1] transition-all duration-300 drop-shadow-lg`}
                                     style={{ 
                                         fontSize: config.fontSize + 'px', 
