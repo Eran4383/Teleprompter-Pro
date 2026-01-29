@@ -67,7 +67,14 @@
             exposure: 0
         };
 
-        const AI_SYSTEM_PROMPT = `You are a script generator. Output raw JSON Array only.`;
+        // --- Helpers ---
+        const formatTime = (ms) => {
+            if (!ms || isNaN(ms)) return "00:00";
+            const totalSeconds = Math.floor(ms / 1000);
+            const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+            const s = (totalSeconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        };
 
         // --- Services (Mock) ---
         const optimizeScript = async (text) => {
@@ -159,7 +166,6 @@
             );
         };
 
-        // --- TeleprompterView Component (Recovered) ---
         const TeleprompterView = ({ segments, onClose }) => {
             const [isPlaying, setIsPlaying] = useState(false);
             const [elapsedTime, setElapsedTime] = useState(0);
@@ -249,13 +255,16 @@
                     if (isRecording) stopRecording();
                 } else {
                     try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1920 } }, audio: true });
+                        const stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { facingMode: 'user', width: { ideal: 1920 } }, 
+                            audio: true 
+                        });
                         if (videoRef.current) {
                             videoRef.current.srcObject = stream;
                             setIsCameraActive(true);
                         }
                     } catch (error) {
-                        alert("Could not access camera.");
+                        alert("Could not access camera. Make sure you are on HTTPS.");
                     }
                 }
             };
@@ -286,7 +295,7 @@
 
             // Playback Logic
             const syncTimeFromScroll = () => {
-                if (!containerRef.current) return;
+                if (!containerRef.current || segments.length === 0) return;
                 const container = containerRef.current;
                 const center = container.scrollTop + (container.clientHeight / 2);
                 let activeIdx = segments.length - 1;
@@ -333,7 +342,7 @@
                     if (el) {
                         const m = segmentTimeMap[activeIdx];
                         const progress = (elapsedTime - m.start) / m.duration;
-                        const scrollOffset = (el.offsetTop + el.clientHeight * progress) - (el.clientHeight / 2) - (containerRef.current.clientHeight / 2) + el.clientHeight;
+                        const scrollOffset = (el.offsetTop + el.clientHeight * progress) - (containerRef.current.clientHeight / 2);
                         containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
                     }
                 }
@@ -383,7 +392,9 @@
                     )}
 
                     {config.showTimer && (
-                        <div className={`absolute top-6 left-6 z-30 font-mono text-5xl font-bold text-white/30 ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>{formatTime(elapsedTime)}</div>
+                        <div className={`absolute top-6 left-6 z-30 font-mono text-5xl font-bold text-white/30 ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
+                            {formatTime(elapsedTime)}
+                        </div>
                     )}
 
                     <div className="flex-1 relative overflow-hidden z-10">
@@ -426,7 +437,6 @@
             const [savedScripts, setSavedScripts] = useState([]);
             const [currentScriptId, setCurrentScriptId] = useState(null);
             
-            // Modal State
             const [modalConfig, setModalConfig] = useState({ isOpen: false });
             const [tempInput, setTempInput] = useState('');
             
