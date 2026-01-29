@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { PromptConfig, ScriptSegment } from '../types';
+
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { PromptConfig, ScriptSegment, SegmentWord } from '../types';
 
 interface TeleprompterViewProps {
     segments: ScriptSegment[];
@@ -59,9 +60,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    // Fix: Specify initial value for useRef to satisfy 'Expected 1 arguments, but got 0'
     const requestRef = useRef<number | undefined>(undefined);
-    // Fix: Specify initial value for useRef to satisfy 'Expected 1 arguments, but got 0'
     const lastTimeRef = useRef<number | undefined>(undefined);
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
     const isManualScroll = useRef(false);
@@ -92,7 +91,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleDragMove = (e: MouseEvent | TouchEvent) => {
         if (!isDragging) return;
-        e.preventDefault(); 
         const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
         setSettingsPos({ x: clientX - dragOffset.x, y: clientY - dragOffset.y });
@@ -153,7 +151,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         setCameraCapabilities(track.getCapabilities());
                         setCameraSettings(track.getSettings());
                     } else {
-                        // Cast to any to bypass missing properties on MediaTrackCapabilities
                         setCameraCapabilities({} as any); 
                     }
                 }
@@ -222,7 +219,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             }
             if (!selectedMimeType) selectedMimeType = 'video/webm';
 
-            console.log(`Recording using MIME type: ${selectedMimeType}`);
             const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType, videoBitsPerSecond: 5000000 });
             recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
             recorder.onstop = () => {
@@ -395,10 +391,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         }
     };
 
-    // Fix: Cast to any for non-standard camera capabilities
     const hasCameraControls = cameraCapabilities && ((cameraCapabilities as any).torch || (cameraCapabilities as any).zoom || (cameraCapabilities as any).exposureCompensation);
 
-    // CSS Filters string
     const videoFilters = [
         config.videoFilter !== 'none' ? FILTER_STYLES[config.videoFilter].filter : '',
         `brightness(${config.brightness})`,
@@ -441,7 +435,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             </div>
             
-            {/* DRAGGABLE Settings Panel */}
             {showSettings && (
                 <div 
                     className="absolute z-50 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]"
@@ -481,13 +474,13 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
                         <div className="flex items-center justify-between">
                             <span className="text-zinc-400">Mirror Text</span>
-                             <button onClick={() => setConfig(c => ({...c, isMirrored: !c.isMirrored}))} className={`px-3 py-1 rounded-full ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                             <button onClick={() => setConfig((c: PromptConfig) => ({...c, isMirrored: !c.isMirrored}))} className={`px-3 py-1 rounded-full ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
                                 {config.isMirrored ? 'ON' : 'OFF'}
                             </button>
                         </div>
                          <div className="flex items-center justify-between">
                             <span className="text-zinc-400">Show Timer</span>
-                             <button onClick={() => setConfig(c => ({...c, showTimer: !c.showTimer}))} className={`px-3 py-1 rounded-full ${config.showTimer ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                             <button onClick={() => setConfig((c: PromptConfig) => ({...c, showTimer: !c.showTimer}))} className={`px-3 py-1 rounded-full ${config.showTimer ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
                                 {config.showTimer ? 'ON' : 'OFF'}
                             </button>
                         </div>
@@ -496,7 +489,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                     <div className="space-y-3 pt-2 border-t border-zinc-800">
                         <div className="flex justify-between items-center">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Advanced Video</h3>
-                            <button onClick={() => setConfig(c => ({...c, videoScale: 1, brightness: 1, contrast: 1, saturation: 1}))} className="text-xs text-indigo-400 hover:text-white" title="Reset video settings">Reset</button>
+                            <button onClick={() => setConfig((c: PromptConfig) => ({...c, videoScale: 1, brightness: 1, contrast: 1, saturation: 1}))} className="text-xs text-indigo-400 hover:text-white" title="Reset video settings">Reset</button>
                         </div>
                         
                         <div className="flex flex-col gap-1">
@@ -533,7 +526,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         <div className="space-y-3 pt-2 border-t border-zinc-800">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Hardware Controls</h3>
                             {!hasCameraControls && <p className="text-zinc-600 italic">No hardware controls available.</p>}
-                            {/* Cast capabilities and settings to any to access non-standard properties like torch and zoom */}
                             {cameraCapabilities && (cameraCapabilities as any).torch && (
                                 <div className="flex items-center justify-between">
                                     <span className="text-zinc-400">Flash</span>
@@ -571,7 +563,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         {segments.map((seg, idx) => {
                             const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
                             return (
-                                // Fix: Ref callback should return void. wrap assignment in curly braces.
                                 <div key={seg.id} ref={(el) => { segmentRefs.current[idx] = el; }} 
                                     className={`mb-10 font-bold text-center leading-[1.1] transition-all duration-300 drop-shadow-lg`}
                                     style={{ 
@@ -581,7 +572,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                         filter: isActive ? 'none' : 'blur(0.5px)',
                                         transform: isActive ? 'scale(1)' : 'scale(0.98)'
                                     }} dir="auto">
-                                    {seg.words.map((w, wi) => (
+                                    {seg.words.map((w: SegmentWord, wi: number) => (
                                         <span key={wi} className={`inline-block mr-[0.2em] ${w.color || 'text-white'}`}>{w.text}</span>
                                     ))}
                                 </div>
@@ -593,7 +584,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
             <div className="bg-zinc-950/90 backdrop-blur border-t border-zinc-900 px-4 py-4 pb-8 sm:pb-4 z-50 transition-colors" onDoubleClick={e => e.stopPropagation()}>
                          <div className="max-w-2xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
-                             <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                             <div className="flex items-center justify-between w-full sm:auto gap-4">
                                 <button onClick={onClose} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white group shrink-0" title="Exit">
                                     <div className="p-2 bg-zinc-900 rounded-lg group-hover:bg-zinc-800 border border-zinc-800">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
