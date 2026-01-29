@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ScriptSegment, SavedScript } from '../types';
 import { Button } from './Button';
@@ -19,9 +20,6 @@ const COLOR_PALETTE = [
     { class: 'text-purple-400', label: 'Purple', bg: 'bg-purple-400' },
 ];
 
-const AI_SYSTEM_PROMPT = `You are a script generator for a Teleprompter App.
-Please output a raw JSON Array (and nothing else).`;
-
 // --- Custom Modal Component ---
 interface ModalProps {
     isOpen: boolean;
@@ -31,13 +29,14 @@ interface ModalProps {
     onConfirm?: () => void;
     confirmText?: string;
     isInput?: boolean;
+    isTextArea?: boolean;
     inputValue?: string;
     onInputChange?: (val: string) => void;
     type?: 'info' | 'danger' | 'input';
 }
 
 const Modal: React.FC<ModalProps> = ({ 
-    isOpen, title, message, onClose, onConfirm, confirmText = "OK", isInput, inputValue, onInputChange, type = 'info' 
+    isOpen, title, message, onClose, onConfirm, confirmText = "OK", isInput, isTextArea, inputValue, onInputChange, type = 'info' 
 }) => {
     if (!isOpen) return null;
     return (
@@ -46,12 +45,22 @@ const Modal: React.FC<ModalProps> = ({
                 <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
                 {message && <p className="text-zinc-400 text-sm mb-4 leading-relaxed">{message}</p>}
                 
-                {isInput && onInputChange && (
+                {isInput && onInputChange && !isTextArea && (
                     <input 
                         type="text" 
                         value={inputValue} 
                         onChange={e => onInputChange(e.target.value)}
                         className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white text-sm mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        autoFocus
+                    />
+                )}
+
+                {isInput && onInputChange && isTextArea && (
+                    <textarea 
+                        value={inputValue} 
+                        onChange={e => onInputChange(e.target.value)}
+                        className="w-full h-40 bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-white text-xs mb-4 focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                        placeholder="Paste JSON data here..."
                         autoFocus
                     />
                 )}
@@ -86,7 +95,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
     const [tempInput, setTempInput] = useState('');
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const tuneContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Sync raw text when segments change externally
@@ -120,7 +128,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
 
         const rawContent = segmentsToSave.map(s => s.text).join('\n');
         
-        // Generate Title: First 3 words
         const firstLine = segmentsToSave.find(s => s.text.trim().length > 0)?.text || "Untitled Script";
         const generatedTitle = firstLine.split(' ').slice(0, 3).join(' ') + (firstLine.split(' ').length > 3 ? '...' : '');
 
@@ -128,7 +135,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         let newId = currentScriptId;
 
         if (currentScriptId) {
-            // Update existing
             updatedHistory = updatedHistory.map(s => s.id === currentScriptId ? {
                 ...s,
                 segments: segmentsToSave,
@@ -136,7 +142,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                 date: new Date().toISOString()
             } : s);
         } else {
-            // Create New
             newId = Date.now().toString();
             const newScript: SavedScript = {
                 id: newId,
@@ -169,7 +174,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         });
         
         onSegmentsChange(newSegments);
-        saveCurrentToHistory(newSegments); // Auto-Save trigger
+        saveCurrentToHistory(newSegments);
         return newSegments;
     };
 
@@ -215,7 +220,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         if (activeTab === 'write') {
             syncTextToSegments();
         } else {
-            // Even if in Tune mode, let's ensure latest state is saved
             saveCurrentToHistory(segments);
         }
         onStartPrompt();
@@ -270,12 +274,49 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         });
     };
     
-    // Improved Rename Logic
     const confirmRename = (id: string, newName: string) => {
         const updated = savedScripts.map(s => s.id === id ? { ...s, title: newName } : s);
         setSavedScripts(updated);
         localStorage.setItem('teleprompter_history', JSON.stringify(updated));
         showToast("Script renamed.");
+    };
+
+    const handlePasteData = () => {
+        setTempInput('');
+        setModalConfig({
+            isOpen: true,
+            title: "Import from Text",
+            message: "Paste your exported history or script JSON below:",
+            isInput: true,
+            isTextArea: true,
+            confirmText: "Import",
+            onConfirm: () => {
+                try {
+                    const data = JSON.parse(tempInput);
+                    if (Array.isArray(data)) {
+                        // History import
+                        localStorage.setItem('teleprompter_history', JSON.stringify(data));
+                        setSavedScripts(data);
+                        showToast("History imported successfully!");
+                        setActiveTab('history');
+                    } else if (data && typeof data === 'object') {
+                        // Single script import (bonus support)
+                        const script = data as SavedScript;
+                        if (script.segments && script.rawText) {
+                            const updated = [script, ...savedScripts];
+                            setSavedScripts(updated);
+                            localStorage.setItem('teleprompter_history', JSON.stringify(updated));
+                            showToast("Single script imported.");
+                            setActiveTab('history');
+                        }
+                    } else {
+                        throw new Error("Invalid format");
+                    }
+                } catch (e) {
+                    showToast("Invalid JSON data. Please check and try again.", 'error');
+                }
+            }
+        });
     };
 
     // --- AI Logic ---
@@ -290,7 +331,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             setActiveTab('tune');
             saveCurrentToHistory(optimized);
         } catch (e) {
-            setModalConfig({isOpen: true, title: "AI Error", message: "Failed to optimize script.", type: 'danger', onClose: () => setModalConfig({...modalConfig, isOpen: false})});
+            showToast("AI Optimization failed", "error");
         } finally {
             setIsProcessing(false);
         }
@@ -307,7 +348,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             setActiveTab('tune');
             saveCurrentToHistory(generated);
         } catch (e) {
-            setModalConfig({isOpen: true, title: "AI Error", message: "Failed to generate script.", type: 'danger', onClose: () => setModalConfig({...modalConfig, isOpen: false})});
+            showToast("AI Generation failed", "error");
         } finally {
             setIsProcessing(false);
         }
@@ -372,6 +413,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                 confirmText={modalConfig.confirmText}
                 type={modalConfig.type}
                 isInput={modalConfig.isInput}
+                isTextArea={modalConfig.isTextArea}
                 inputValue={tempInput}
                 onInputChange={setTempInput}
                 onClose={() => setModalConfig({...modalConfig, isOpen: false})}
@@ -384,7 +426,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                 }}
             />
 
-            {/* Toast Notification */}
             {toast && (
                 <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-xl border backdrop-blur-md transition-all animate-fade-in-down ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
                     <span className="text-xs font-medium flex items-center gap-2">
@@ -394,7 +435,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                 </div>
             )}
 
-            {/* Main Tabs */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-zinc-950 border-b border-zinc-800 gap-3">
                 <div className="flex space-x-2">
                     <button 
@@ -438,12 +478,9 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             <div className="flex-1 flex flex-col min-h-0">
                 {activeTab === 'write' && (
                     <div className="flex-1 flex flex-col p-3 sm:p-4 gap-3 min-h-0">
-                        {/* File & Actions Bar */}
                         <div className="flex flex-col gap-2 shrink-0">
                             
-                            {/* Row 1: AI & Import/Export */}
                             <div className="p-2 bg-zinc-950 rounded-lg border border-zinc-800 flex flex-col lg:flex-row gap-2">
-                                {/* AI Section */}
                                 <div className="flex items-center gap-2 flex-1 border-r border-zinc-800 pr-2">
                                     <Button 
                                         variant="secondary" 
@@ -452,7 +489,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                         isLoading={isProcessing}
                                         className="whitespace-nowrap h-9"
                                         icon={<svg className="w-3 h-3 text-purple-400" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>}
-                                        title="Automatically set timing and segments using AI"
+                                        title="AI Timing"
                                     >
                                         AI Timing
                                     </Button>
@@ -469,19 +506,18 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                                     </div>
                                 </div>
 
-                                {/* File Operations */}
                                 <div className="flex items-center gap-2">
-                                    <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={() => { /* ... */ }} />
-                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => fileInputRef.current?.click()} title="Import JSON">Import</Button>
-                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { /* ... */ }} title="Export JSON">Export</Button>
+                                    <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={() => { /* logic here if needed */ }} />
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => fileInputRef.current?.click()}>Import</Button>
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={handlePasteData}>Paste Data</Button>
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs">Export</Button>
                                 </div>
                             </div>
 
-                            {/* Row 2: Basic Text Actions */}
                             <div className="flex items-center justify-end gap-2 px-1">
                                 <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handleSelectAll}>Select All</Button>
                                 <Button variant="ghost" size="sm" className="h-8 text-[10px]" onClick={handlePaste}>Paste</Button>
-                                <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSaveAndSync} title="Updates current script in History">Save & Sync</Button>
+                                <Button variant="primary" size="sm" className="h-8 text-[10px] px-4" onClick={handleSaveAndSync}>Save & Sync</Button>
                             </div>
                         </div>
 
@@ -492,7 +528,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                             value={rawText}
                             onChange={(e) => setRawText(e.target.value)}
                             dir="auto"
-                            onContextMenu={(e) => e.stopPropagation()}
                         />
                         <p className="text-[10px] text-zinc-500 text-center">Changes are auto-saved to History when synced.</p>
                     </div>
@@ -500,7 +535,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
 
                 {activeTab === 'tune' && (
                     <div className="flex flex-col h-full overflow-hidden">
-                        {/* Color Toolbar */}
                         <div className="shrink-0 p-2 bg-zinc-950 border-b border-zinc-800 flex items-center justify-center gap-2">
                             <span className="text-[10px] text-zinc-500 uppercase font-bold mr-2">Highlight:</span>
                             {COLOR_PALETTE.map((c, i) => (
@@ -514,7 +548,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                             ))}
                         </div>
 
-                        <div ref={tuneContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar select-text">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar select-text">
                             {segments.map((segment) => (
                                 <div key={segment.id} className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 group transition-all hover:border-zinc-600">
                                     <div className="mb-3">
