@@ -6,17 +6,17 @@
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "allowJs": false,
     "skipLibCheck": true,
-    "esModuleInterop": true,
+    "esModuleInterop": false,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "Node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-alpha"
   },
-  "include": ["./index.tsx", "./App.tsx", "./types.ts", "./constants.ts", "./components/**/*.ts", "./components/**/*.tsx", "./services/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["node_modules"]
 }
