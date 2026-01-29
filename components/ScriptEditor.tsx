@@ -1,6 +1,3 @@
-הנה הקוד המלא והמעודכן עבור `ScriptEditor.tsx`. הטמעתי בו את פונקציות ה-Import וה-Export וחיברתי אותן לכפתורים הקיימים, כולל הגדרה נכונה של ה-input כדי שתוכל לבחור את קבצי ה-JSON שלך.
-
-```tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { ScriptSegment, SavedScript } from '../types';
 import { Button } from './Button';
@@ -109,7 +106,6 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         setTimeout(() => setToast(null), 3000);
     };
 
-    // --- Import / Export Logic ---
     const handleExportJSON = () => {
         if (segments.length === 0) {
             showToast("Nothing to export", "error");
@@ -146,10 +142,9 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             }
         };
         reader.readAsText(file);
-        e.target.value = ''; // Reset input
+        e.target.value = '';
     };
 
-    // --- Auto Save Logic ---
     const saveCurrentToHistory = (segmentsToSave: ScriptSegment[]) => {
         if (!segmentsToSave || segmentsToSave.length === 0 || (segmentsToSave.length === 1 && !segmentsToSave[0].text.trim())) return;
 
@@ -481,5 +476,3 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         </div>
     );
 };
-
-```
