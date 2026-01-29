@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { PromptConfig, ScriptSegment, SegmentWord } from '../types';
+import { PromptConfig, ScriptSegment, SegmentWord } from '../../types';
 
 interface TeleprompterViewProps {
     segments: ScriptSegment[];
@@ -584,7 +584,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
             <div className="bg-zinc-950/90 backdrop-blur border-t border-zinc-900 px-4 py-4 pb-8 sm:pb-4 z-50 transition-colors" onDoubleClick={e => e.stopPropagation()}>
                          <div className="max-w-2xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
-                             <div className="flex items-center justify-between w-full sm:auto gap-4">
+                             <div className="flex items-center justify-between w-full sm:w-auto gap-4">
                                 <button onClick={onClose} className="flex flex-col items-center gap-1 text-zinc-500 hover:text-white group shrink-0" title="Exit">
                                     <div className="p-2 bg-zinc-900 rounded-lg group-hover:bg-zinc-800 border border-zinc-800">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
