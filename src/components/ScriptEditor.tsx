@@ -9,38 +9,13 @@ interface ScriptEditorProps {
     onStartPrompt: () => void;
 }
 
-const COLOR_PALETTE = [
-    { class: '', label: 'White', bg: 'bg-zinc-200' },
-    { class: 'text-yellow-400', label: 'Yellow', bg: 'bg-yellow-400' },
-    { class: 'text-red-500', label: 'Red', bg: 'bg-red-500' },
-    { class: 'text-green-400', label: 'Green', bg: 'bg-green-400' },
-    { class: 'text-cyan-400', label: 'Cyan', bg: 'bg-cyan-400' },
-    { class: 'text-purple-400', label: 'Purple', bg: 'bg-purple-400' },
-];
-
-interface ModalProps {
-    isOpen: boolean;
-    title: string;
-    message?: string;
-    onClose: () => void;
-    onConfirm?: () => void;
-    confirmText?: string;
-    isInput?: boolean;
-    inputValue?: string;
-    onInputChange?: (val: string) => void;
-    type?: 'info' | 'danger' | 'input';
-}
-
-const Modal: React.FC<ModalProps> = ({ 
-    isOpen, title, message, onClose, onConfirm, confirmText = "OK", isInput, inputValue, onInputChange, type = 'info' 
-}) => {
+const Modal: React.FC<any> = ({ isOpen, title, message, onClose, onConfirm, confirmText = "OK", isInput, inputValue, onInputChange, type = 'info' }) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm p-5 animate-modal-pop" onClick={e => e.stopPropagation()}>
                 <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
                 {message && <p className="text-zinc-400 text-sm mb-4 leading-relaxed">{message}</p>}
-                
                 {isInput && onInputChange && (
                     <input 
                         type="text" 
@@ -50,14 +25,10 @@ const Modal: React.FC<ModalProps> = ({
                         autoFocus
                     />
                 )}
-
                 <div className="flex justify-end gap-2 mt-2">
                     <button onClick={onClose} className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
                     {onConfirm && (
-                        <button 
-                            onClick={() => { onConfirm(); onClose(); }} 
-                            className={`px-4 py-2 text-xs font-medium rounded-lg text-white transition-colors ${type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-                        >
+                        <button onClick={() => { onConfirm(); onClose(); }} className={`px-4 py-2 text-xs font-medium rounded-lg text-white transition-colors ${type === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
                             {confirmText}
                         </button>
                     )}
@@ -126,12 +97,30 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
         onStartPrompt();
     };
 
+    const handleAIGenerate = async () => {
+        if (!topicInput.trim()) return;
+        setIsProcessing(true);
+        try {
+            const generated = await generateScriptFromTopic(topicInput);
+            onSegmentsChange(generated);
+            setRawText(generated.map(s => s.text).join('\n'));
+            setTopicInput('');
+            setActiveTab('tune');
+            saveToHistory(generated);
+            showToast("Script generated!");
+        } catch (e) {
+            showToast("AI Error", "error");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 relative">
             <Modal isOpen={modalConfig.isOpen} title={modalConfig.title} message={modalConfig.message} confirmText={modalConfig.confirmText} type={modalConfig.type} isInput={modalConfig.isInput} inputValue={tempInput} onInputChange={setTempInput} onClose={() => setModalConfig({...modalConfig, isOpen: false})} onConfirm={modalConfig.onConfirm} />
             
             {toast && (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-indigo-600 text-white shadow-lg text-xs font-medium">
+                <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg text-xs font-medium ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white'}`}>
                     {toast.msg}
                 </div>
             )}
@@ -143,7 +132,7 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                     <button onClick={() => setActiveTab('history')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'}`}>History</button>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => onSegmentsChange([])}>Clear</Button>
+                    <Button variant="secondary" size="sm" onClick={() => { setRawText(''); onSegmentsChange([]); }}>Clear</Button>
                     <Button size="sm" onClick={handleStart} icon={<svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}>Start</Button>
                 </div>
             </div>
@@ -151,30 +140,51 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
             <div className="flex-1 flex flex-col min-h-0">
                 {activeTab === 'write' && (
                     <div className="flex-1 flex flex-col p-4 gap-4">
-                        <div className="flex justify-between items-center bg-zinc-950 p-2 rounded-lg border border-zinc-800">
-                            <div className="flex gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>Import</Button>
-                                <Button variant="ghost" size="sm" onClick={() => {/* export logic */}}>Export</Button>
+                        <div className="flex flex-col sm:flex-row justify-between items-center bg-zinc-950 p-2 rounded-lg border border-zinc-800 gap-2">
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} className="flex-1 sm:flex-none">Import</Button>
+                                <Button variant="ghost" size="sm" onClick={() => {}} className="flex-1 sm:flex-none">Export</Button>
                             </div>
-                            <div className="flex gap-2">
-                                <input type="text" placeholder="AI Topic..." className="bg-zinc-900 border border-zinc-700 rounded-md px-3 py-1 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500" value={topicInput} onChange={e=>setTopicInput(e.target.value)} />
-                                <Button size="sm" onClick={() => {/* ai gen logic */}} disabled={!topicInput.trim()}>Generate</Button>
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <input 
+                                    type="text" 
+                                    placeholder="AI Topic..." 
+                                    className="flex-1 sm:w-48 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500" 
+                                    value={topicInput} 
+                                    onChange={e=>setTopicInput(e.target.value)} 
+                                    dir="auto"
+                                />
+                                <Button size="sm" onClick={handleAIGenerate} disabled={!topicInput.trim()} isLoading={isProcessing}>Generate</Button>
                             </div>
                         </div>
-                        <textarea className="flex-1 bg-zinc-950 text-white p-4 rounded-lg resize-none border border-zinc-800 focus:outline-none font-mono text-base" value={rawText} onChange={e=>setRawText(e.target.value)} placeholder="Type script here..."/>
+                        <textarea 
+                            className="flex-1 bg-zinc-950 text-white p-4 rounded-lg resize-none border border-zinc-800 focus:outline-none font-mono text-base leading-relaxed" 
+                            value={rawText} 
+                            onChange={e=>setRawText(e.target.value)} 
+                            placeholder="Type script here..."
+                            dir="auto"
+                        />
                     </div>
                 )}
                 {activeTab === 'tune' && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar" dir="auto">
                         {segments.map(seg => (
                             <div key={seg.id} className="bg-zinc-950 p-4 rounded-lg border border-zinc-800">
-                                <div className="mb-3 text-lg font-medium">{seg.text}</div>
+                                <div className="mb-3 text-lg font-medium" dir="auto">{seg.text}</div>
                                 <div className="flex items-center gap-4">
-                                    <input type="range" min="100" max="15000" step="100" value={seg.duration} onChange={e => {
-                                        const next = segments.map(s => s.id === seg.id ? { ...s, duration: parseInt(e.target.value) } : s);
-                                        onSegmentsChange(next);
-                                    }} className="flex-1 accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"/>
-                                    <span className="text-xs font-mono text-zinc-500">{(seg.duration/1000).toFixed(1)}s</span>
+                                    <input 
+                                        type="range" 
+                                        min="100" 
+                                        max="15000" 
+                                        step="100" 
+                                        value={seg.duration} 
+                                        onChange={e => {
+                                            const next = segments.map(s => s.id === seg.id ? { ...s, duration: parseInt(e.target.value) } : s);
+                                            onSegmentsChange(next);
+                                        }} 
+                                        className="flex-1 accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <span className="text-xs font-mono text-zinc-500 whitespace-nowrap">{(seg.duration/1000).toFixed(1)}s</span>
                                 </div>
                             </div>
                         ))}
@@ -185,16 +195,16 @@ export const ScriptEditor: React.FC<ScriptEditorProps> = ({ segments, onSegments
                         {savedScripts.map(script => (
                             <div key={script.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center hover:border-zinc-600 cursor-pointer" onClick={() => { onSegmentsChange(script.segments); setRawText(script.rawText); setCurrentScriptId(script.id); setActiveTab('write'); showToast("Loaded"); }}>
                                 <div>
-                                    <div className="font-bold text-zinc-200">{script.title}</div>
+                                    <div className="font-bold text-zinc-200" dir="auto">{script.title}</div>
                                     <div className="text-[10px] text-zinc-500">{new Date(script.date).toLocaleDateString()}</div>
                                 </div>
-                                <button onClick={(e) => { e.stopPropagation(); const next = savedScripts.filter(s => s.id !== script.id); setSavedScripts(next); localStorage.setItem('teleprompter_history', JSON.stringify(next)); }} className="text-zinc-600 hover:text-red-400">🗑️</button>
+                                <button onClick={(e) => { e.stopPropagation(); const next = savedScripts.filter(s => s.id !== script.id); setSavedScripts(next); localStorage.setItem('teleprompter_history', JSON.stringify(next)); }} className="p-2 text-zinc-600 hover:text-red-400">🗑️</button>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
-            <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={() => {/* import logic */}} />
+            <input type="file" ref={fileInputRef} className="hidden" />
         </div>
     );
 };

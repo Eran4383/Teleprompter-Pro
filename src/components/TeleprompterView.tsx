@@ -20,13 +20,6 @@ const FILTER_STYLES: Record<string, { filter: string }> = {
     bw: { filter: 'grayscale(1) contrast(1.2)' },
 };
 
-const DEFAULTS = {
-    fontSize: 54,
-    guideOpacity: 0.2,
-    zoom: 1,
-    exposure: 0
-};
-
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -41,10 +34,10 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
     const [config, setConfig] = useState<PromptConfig>({
-        fontSize: DEFAULTS.fontSize,
+        fontSize: 54,
         isMirrored: false,
         overlayColor: '#000000',
-        guideOpacity: DEFAULTS.guideOpacity,
+        guideOpacity: 0.2,
         showTimer: true,
         videoFilter: 'none',
         videoScale: 1.0,
@@ -73,7 +66,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         });
     }, [segments]);
 
-    // Drag Logic for Settings
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
         setIsDragging(true);
         const clientX = 'touches' in e ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
@@ -105,7 +97,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         };
     }, [isDragging, dragOffset]);
 
-    // Camera
     const toggleCamera = async () => {
         if (isCameraActive) {
             const stream = videoRef.current?.srcObject as MediaStream;
@@ -153,7 +144,6 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
         setIsRecording(false);
     };
 
-    // Playback Animation
     const animate = (time: number) => {
         if (lastTimeRef.current !== undefined && isPlaying) {
             const deltaTime = time - lastTimeRef.current;
@@ -201,48 +191,69 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     ].filter(Boolean).join(' ');
 
     return (
-        <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden ${isCameraActive ? 'bg-black/30' : 'bg-black'} text-white`}>
-            <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 w-full h-full object-cover z-0 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`} style={{ transform: `scaleX(-1) scale(${config.videoScale})`, filter: videoFilters }} />
+        <div className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-colors duration-500 ${isCameraActive ? 'bg-black/30' : 'bg-black'} text-white`}>
+            <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`} style={{ transform: `scaleX(-1) scale(${config.videoScale})`, filter: videoFilters }} />
             
-            {/* Draggable Settings */}
             {showSettings && (
-                <div className="absolute z-50 bg-zinc-950/95 backdrop-blur border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-5 text-xs overflow-y-auto max-h-[80vh]"
-                     style={{ left: settingsPos.x, top: settingsPos.y }}
-                     onMouseDown={handleDragStart} onTouchStart={handleDragStart}>
-                    <div className="flex justify-between border-b border-zinc-800 pb-2 cursor-grab active:cursor-grabbing">
-                        <span className="font-bold">Settings</span>
-                        <button onClick={() => setShowSettings(false)}>✕</button>
+                <div 
+                    className="absolute z-[60] bg-zinc-950/95 backdrop-blur-md border border-zinc-800 p-4 rounded-xl shadow-2xl w-72 flex flex-col gap-4 text-xs overflow-y-auto max-h-[80vh]"
+                    style={{ left: settingsPos.x, top: settingsPos.y, cursor: isDragging ? 'grabbing' : 'auto' }}
+                    onMouseDown={handleDragStart} onTouchStart={handleDragStart}
+                >
+                    <div className="flex justify-between items-center border-b border-zinc-800 pb-2 cursor-grab active:cursor-grabbing">
+                        <span className="font-bold text-zinc-200">Settings</span>
+                        <button onClick={() => setShowSettings(false)} className="text-zinc-500 hover:text-white transition-colors">✕</button>
                     </div>
-                    <div className="space-y-3">
-                        <div><label>Font Size: {config.fontSize}px</label><input type="range" min="20" max="150" value={config.fontSize} onChange={e=>setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/></div>
-                        <div><label>Ghost Opacity: {Math.round(config.guideOpacity * 100)}%</label><input type="range" min="0" max="1" step="0.1" value={config.guideOpacity} onChange={e=>setConfig({...config, guideOpacity: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/></div>
-                        <div className="flex justify-between"><span>Mirror Text</span><button onClick={()=>setConfig(c=>({...c, isMirrored:!c.isMirrored}))} className={`px-2 py-1 rounded ${config.isMirrored ? 'bg-indigo-600' : 'bg-zinc-800'}`}>{config.isMirrored?'ON':'OFF'}</button></div>
-                        <div className="border-t border-zinc-800 pt-2 mt-2">
-                            <h4 className="font-bold mb-2">Video Adjustments</h4>
-                            <div><label>Zoom: {config.videoScale}x</label><input type="range" min="0.5" max="2" step="0.1" value={config.videoScale} onChange={e=>setConfig({...config, videoScale: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/></div>
-                            <div><label>Brightness</label><input type="range" min="0.5" max="2" step="0.1" value={config.brightness} onChange={e=>setConfig({...config, brightness: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/></div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-zinc-500 block mb-1">Font Size: {config.fontSize}px</label>
+                            <input type="range" min="20" max="150" value={config.fontSize} onChange={e=>setConfig({...config, fontSize: parseInt(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                        </div>
+                        <div>
+                            <label className="text-zinc-500 block mb-1">Ghost Opacity: {Math.round(config.guideOpacity * 100)}%</label>
+                            <input type="range" min="0" max="1" step="0.1" value={config.guideOpacity} onChange={e=>setConfig({...config, guideOpacity: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-zinc-400">Mirror Prompt</span>
+                            <button onClick={()=>setConfig(c=>({...c, isMirrored:!c.isMirrored}))} className={`px-3 py-1 rounded-full text-[10px] font-bold transition-colors ${config.isMirrored ? 'bg-indigo-600' : 'bg-zinc-800 text-zinc-500'}`}>{config.isMirrored?'ON':'OFF'}</button>
+                        </div>
+                        <div className="pt-2 border-t border-zinc-800">
+                            <label className="text-zinc-500 block mb-1">Zoom: {config.videoScale}x</label>
+                            <input type="range" min="0.5" max="2" step="0.1" value={config.videoScale} onChange={e=>setConfig({...config, videoScale: parseFloat(e.target.value)})} className="w-full accent-indigo-500 h-1.5 bg-zinc-800 rounded-lg appearance-none"/>
                         </div>
                     </div>
                 </div>
             )}
 
             {config.showTimer && (
-                <div className={`absolute top-6 left-6 z-30 font-mono text-5xl font-bold text-white/30 drop-shadow-lg ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
+                <div className={`absolute top-8 left-8 z-30 font-mono text-5xl font-bold text-white/20 select-none ${config.isMirrored ? 'scale-x-[-1]' : ''}`}>
                     {formatTime(elapsedTime)}
                 </div>
             )}
 
             <div className="flex-1 relative overflow-hidden z-10">
-                <div className="absolute inset-0 pointer-events-none z-20 flex items-center"><div className="w-full h-px bg-red-600/40"/></div>
+                <div className="absolute inset-0 pointer-events-none z-20 flex items-center"><div className="w-full h-px bg-red-600/30"/></div>
                 <div ref={containerRef} onMouseDown={() => { setIsPlaying(false); isManualScroll.current = true; }} onTouchStart={() => { setIsPlaying(false); isManualScroll.current = true; }} className={`h-full overflow-y-auto relative no-scrollbar ${config.isMirrored ? 'scale-y-[-1] scale-x-[-1]' : ''}`}>
-                    <div className="py-[50vh] px-6 max-w-4xl mx-auto">
+                    <div className="py-[50vh] px-8 max-w-4xl mx-auto">
                         {segments.map((seg, idx) => {
                             const isActive = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
                             return (
-                                // Fix: wrap ref assignment in braces to return void, satisfying React Ref types
-                                <div key={seg.id} ref={el => { segmentRefs.current[idx] = el; }} className="mb-10 font-bold text-center leading-tight transition-all duration-300 drop-shadow-lg"
-                                    style={{ fontSize: config.fontSize + 'px', opacity: isActive ? 1 : config.guideOpacity, transform: isActive ? 'scale(1)' : 'scale(0.98)' }}>
-                                    {seg.words.map((w, wi) => <span key={wi} className={`inline-block mr-[0.2em] ${w.color || 'text-white'}`}>{w.text}</span>)}
+                                <div 
+                                    key={seg.id} 
+                                    ref={el => { segmentRefs.current[idx] = el; }} 
+                                    className="mb-12 font-bold text-center leading-tight transition-all duration-300 drop-shadow-2xl"
+                                    style={{ 
+                                        fontSize: config.fontSize + 'px', 
+                                        opacity: isActive ? 1 : config.guideOpacity, 
+                                        transform: isActive ? 'scale(1)' : 'scale(0.95)',
+                                        filter: isActive ? 'none' : 'blur(0.5px)'
+                                    }}
+                                    dir="auto"
+                                >
+                                    {/* RTL Fix: rendering words in a container with dir="auto" ensures word order is preserved for Hebrew */}
+                                    {seg.words.map((w, wi) => (
+                                        <span key={wi} className={`inline-block mr-[0.25em] ${w.color || 'text-white'}`}>{w.text}</span>
+                                    ))}
                                 </div>
                             );
                         })}
@@ -250,28 +261,31 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                 </div>
             </div>
 
-            {/* Centered Published-Style Bottom Bar */}
-            <div className="bg-zinc-950/90 border-t border-zinc-900 p-6 z-50 flex items-center justify-center gap-6">
-                <button onClick={onClose} className="p-4 bg-zinc-900 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors" title="Exit">
+            <div className="bg-zinc-950/80 backdrop-blur-lg border-t border-zinc-900 p-6 z-50 flex items-center justify-center gap-6">
+                <button onClick={onClose} className="p-4 bg-zinc-900 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg active:scale-95" title="Exit">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
                 
-                <div className="flex items-center gap-3 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Speed</span>
+                <div className="flex items-center gap-4 bg-zinc-900 px-5 py-2 rounded-full border border-zinc-800 shadow-lg">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tighter">Speed</span>
                     <input type="range" min="0.1" max="2.5" step="0.1" value={speedMultiplier} onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} className="w-24 accent-indigo-600 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"/>
                     <span className="text-xs font-mono w-8 text-zinc-400">{speedMultiplier.toFixed(1)}x</span>
                 </div>
 
-                <button onClick={handlePlayPause} className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${isPlaying ? 'bg-indigo-600' : 'bg-green-600'}`}>
+                <button onClick={handlePlayPause} className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-90 ${isPlaying ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-green-600 hover:bg-green-700'}`}>
                     {isPlaying ? <span className="text-xl">⏸</span> : <span className="text-xl ml-1">▶</span>}
                 </button>
 
-                <button onClick={() => setShowSettings(!showSettings)} className={`p-4 rounded-full transition-colors ${showSettings ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`} title="Settings">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <button onClick={() => setShowSettings(!showSettings)} className={`p-4 rounded-full transition-all shadow-lg ${showSettings ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white'}`} title="Settings">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
                 </button>
 
-                <button onClick={isRecording ? stopRecording : (isCameraActive ? startRecording : toggleCamera)} className={`p-4 rounded-full transition-all ${isRecording ? 'bg-red-600 animate-pulse' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : 'bg-zinc-900 text-zinc-500 hover:text-white')}`}>
-                    {isRecording ? <span className="font-bold text-xs">REC</span> : <span className="text-xl">📷</span>}
+                <button 
+                    onClick={isRecording ? stopRecording : (isCameraActive ? startRecording : toggleCamera)} 
+                    className={`p-4 rounded-full transition-all shadow-lg ${isRecording ? 'bg-red-600 animate-pulse' : (isCameraActive ? 'bg-zinc-900 text-red-500 hover:bg-zinc-800' : 'bg-zinc-900 text-zinc-500 hover:text-white')}`}
+                    title={isRecording ? "Stop Recording" : (isCameraActive ? "Start Record" : "Enable Camera")}
+                >
+                    {isRecording ? <span className="font-bold text-[10px]">REC</span> : <span className="text-xl">📷</span>}
                 </button>
             </div>
         </div>
