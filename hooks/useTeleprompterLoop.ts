@@ -75,15 +75,24 @@ export const useTeleprompterLoop = (
         if (lastTimeRef.current !== undefined && isPlaying) {
             const deltaTime = time - lastTimeRef.current;
             const nextTime = elapsedTime + (deltaTime * speedMultiplier);
-            const clampedTime = nextTime >= totalDuration ? totalDuration : nextTime;
-            setElapsedTime(clampedTime);
+            
+            // Continuous Playback Feature:
+            // Auto-stop is only active in Camera Mode. In Video Mode, we let the timer keep running.
+            if (config.bgMode === 'camera' && nextTime >= totalDuration) {
+                setElapsedTime(totalDuration);
+                setIsPlaying(false);
+            } else {
+                setElapsedTime(nextTime);
+            }
+
+            const currentElapsed = (config.bgMode === 'camera' && nextTime >= totalDuration) ? totalDuration : nextTime;
 
             // Background Video Sync Logic (Master-Slave)
             if (config.bgMode === 'video' && videoRef.current) {
                 const video = videoRef.current;
                 
-                // Keep video playback state in sync
-                if (video.paused && clampedTime < totalDuration) {
+                // Keep video playback state in sync if it hasn't ended natively
+                if (video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
                 
@@ -94,12 +103,15 @@ export const useTeleprompterLoop = (
 
                 // Drift detection and correction (every 500ms)
                 if (time - lastSyncTimeRef.current > 500) {
-                    const expectedVideoTime = clampedTime / 1000;
+                    const expectedVideoTime = currentElapsed / 1000;
                     const actualVideoTime = video.currentTime;
-                    const drift = Math.abs(expectedVideoTime - actualVideoTime);
-
-                    if (drift > 0.15) { // Threshold for correction
-                        video.currentTime = expectedVideoTime;
+                    
+                    // Only apply drift correction if the video hasn't ended
+                    if (!video.ended) {
+                        const drift = Math.abs(expectedVideoTime - actualVideoTime);
+                        if (drift > 0.15) { // Threshold for correction
+                            video.currentTime = expectedVideoTime;
+                        }
                     }
                     lastSyncTimeRef.current = time;
                 }
@@ -110,7 +122,7 @@ export const useTeleprompterLoop = (
 
         lastTimeRef.current = time;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, videoRef]);
+    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, videoRef, setIsPlaying]);
 
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
@@ -179,11 +191,6 @@ export const useTeleprompterLoop = (
     const handleScroll = () => {
         if (!isPlaying) {
             syncTimeFromScroll();
-            // In video mode, seek video to matching scroll position
-            if (config.bgMode === 'video' && videoRef.current) {
-                // Time is updated by syncTimeFromScroll
-                // We'll rely on the next animation frame or force it
-            }
         }
     };
 
