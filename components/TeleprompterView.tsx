@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { PromptConfig, ScriptSegment } from '../types';
+import { PromptConfig, ScriptSegment, SegmentWord } from '../types';
 
 interface TeleprompterViewProps {
     segments: ScriptSegment[];
@@ -27,6 +27,8 @@ const DEFAULTS = {
     exposure: 0
 };
 
+const STORAGE_KEY = 'teleprompter_config';
+
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -44,18 +46,28 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-    const [config, setConfig] = useState<PromptConfig>({
-        fontSize: DEFAULTS.fontSize,
-        isMirrored: false,
-        overlayColor: '#000000',
-        guideOpacity: DEFAULTS.guideOpacity,
-        showTimer: true,
-        videoFilter: 'none',
-        // Advanced
-        videoScale: 1.0,
-        brightness: 1.0,
-        contrast: 1.0,
-        saturation: 1.0
+    // Initialize config from localStorage or defaults
+    const [config, setConfig] = useState<PromptConfig>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error("Failed to parse saved config", e);
+            }
+        }
+        return {
+            fontSize: DEFAULTS.fontSize,
+            isMirrored: false,
+            overlayColor: '#000000',
+            guideOpacity: DEFAULTS.guideOpacity,
+            showTimer: true,
+            videoFilter: 'none',
+            videoScale: 1.0,
+            brightness: 1.0,
+            contrast: 1.0,
+            saturation: 1.0
+        };
     });
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +92,11 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             return { start, end: acc, id: s.id, duration: s.duration };
         });
     }, [segments]);
+
+    // Persistent storage effect
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    }, [config]);
 
     // Drag Logic
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -474,13 +491,13 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
                         <div className="flex items-center justify-between">
                             <span className="text-zinc-400">Mirror Text</span>
-                             <button onClick={() => setConfig(c => ({...c, isMirrored: !c.isMirrored}))} className={`px-3 py-1 rounded-full ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                             <button onClick={() => setConfig((c: PromptConfig) => ({...c, isMirrored: !c.isMirrored}))} className={`px-3 py-1 rounded-full ${config.isMirrored ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
                                 {config.isMirrored ? 'ON' : 'OFF'}
                             </button>
                         </div>
                          <div className="flex items-center justify-between">
                             <span className="text-zinc-400">Show Timer</span>
-                             <button onClick={() => setConfig(c => ({...c, showTimer: !c.showTimer}))} className={`px-3 py-1 rounded-full ${config.showTimer ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                             <button onClick={() => setConfig((c: PromptConfig) => ({...c, showTimer: !c.showTimer}))} className={`px-3 py-1 rounded-full ${config.showTimer ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
                                 {config.showTimer ? 'ON' : 'OFF'}
                             </button>
                         </div>
@@ -489,7 +506,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                     <div className="space-y-3 pt-2 border-t border-zinc-800">
                         <div className="flex justify-between items-center">
                             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Advanced Video</h3>
-                            <button onClick={() => setConfig(c => ({...c, videoScale: 1, brightness: 1, contrast: 1, saturation: 1}))} className="text-xs text-indigo-400 hover:text-white" title="Reset video settings">Reset</button>
+                            <button onClick={() => setConfig((c: PromptConfig) => ({...c, videoScale: 1, brightness: 1, contrast: 1, saturation: 1}))} className="text-xs text-indigo-400 hover:text-white" title="Reset video settings">Reset</button>
                         </div>
                         
                         <div className="flex flex-col gap-1">
@@ -572,7 +589,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                                         filter: isActive ? 'none' : 'blur(0.5px)',
                                         transform: isActive ? 'scale(1)' : 'scale(0.98)'
                                     }} dir="auto">
-                                    {seg.words.map((w, wi) => (
+                                    {seg.words.map((w: SegmentWord, wi: number) => (
                                         <span key={wi} className={`inline-block mr-[0.2em] ${w.color || 'text-white'}`}>{w.text}</span>
                                     ))}
                                 </div>
