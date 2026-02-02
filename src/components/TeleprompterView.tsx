@@ -27,6 +27,8 @@ const DEFAULTS = {
     exposure: 0
 };
 
+const STORAGE_KEY = 'teleprompter_config';
+
 export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, onClose }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -44,18 +46,28 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-    const [config, setConfig] = useState<PromptConfig>({
-        fontSize: DEFAULTS.fontSize,
-        isMirrored: false,
-        overlayColor: '#000000',
-        guideOpacity: DEFAULTS.guideOpacity,
-        showTimer: true,
-        videoFilter: 'none',
-        // Advanced
-        videoScale: 1.0,
-        brightness: 1.0,
-        contrast: 1.0,
-        saturation: 1.0
+    // Initialize config from localStorage or defaults
+    const [config, setConfig] = useState<PromptConfig>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error("Failed to parse saved config", e);
+            }
+        }
+        return {
+            fontSize: DEFAULTS.fontSize,
+            isMirrored: false,
+            overlayColor: '#000000',
+            guideOpacity: DEFAULTS.guideOpacity,
+            showTimer: true,
+            videoFilter: 'none',
+            videoScale: 1.0,
+            brightness: 1.0,
+            contrast: 1.0,
+            saturation: 1.0
+        };
     });
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +92,11 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             return { start, end: acc, id: s.id, duration: s.duration };
         });
     }, [segments]);
+
+    // Persistent storage effect
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    }, [config]);
 
     // Drag Logic
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
