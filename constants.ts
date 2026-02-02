@@ -1,7 +1,7 @@
 
 import { ScriptSegment, PromptConfig } from "./types";
 
-export const APP_VERSION = "v1.2.22";
+export const APP_VERSION = "v1.2.23";
 
 const createSegment = (id: string, text: string, duration: number): ScriptSegment => ({
     id,
@@ -12,7 +12,7 @@ const createSegment = (id: string, text: string, duration: number): ScriptSegmen
 
 export const DEFAULT_SCRIPT: ScriptSegment[] = [
     createSegment('1', "Welcome to Teleprompter PRO.", 2000),
-    createSegment('2', "We've added color pickers and reset buttons.", 3000),
+    createSegment('2', "Build error fixed: React 19 Ref callbacks.", 3000),
     createSegment('3', "Try the new Landscape rotation mode.", 3500),
     createSegment('4', "Everything is saved automatically.", 4000),
 ];

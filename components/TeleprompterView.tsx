@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { PromptConfig, ScriptSegment, SegmentWord } from '../types';
+import { PromptConfig, ScriptSegment } from '../types';
 import { PROMPTER_DEFAULTS } from '../constants';
 import { PrompterSettings } from './PrompterSettings';
 import { PrompterControls } from './PrompterControls';
@@ -31,6 +31,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const lastTimeRef = useRef<number | undefined>(undefined);
+    const requestRef = useRef<number | null>(null);
     const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     const totalDuration = useMemo(() => segments.reduce((acc, seg) => acc + seg.duration, 0), [segments]);
@@ -43,8 +44,8 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
 
     const handleDragMove = (e: MouseEvent | TouchEvent) => {
         if (!isDragging) return;
-        const cx = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-        const cy = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+        const cx = 'touches' in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+        const cy = 'touches' in e ? (e as TouchEvent).touches[0].clientY : (e as MouseEvent).clientY;
         setSettingsPos({ x: cx - dragOffset.x, y: cy - dragOffset.y });
     };
 
@@ -62,10 +63,13 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
             setElapsedTime(prev => Math.min(totalDuration, prev + (delta * speedMultiplier)));
         }
         lastTimeRef.current = time;
-        requestAnimationFrame(animate);
+        requestRef.current = requestAnimationFrame(animate);
     };
 
-    useEffect(() => { requestAnimationFrame(animate); }, [isPlaying, speedMultiplier]);
+    useEffect(() => { 
+        requestRef.current = requestAnimationFrame(animate);
+        return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
+    }, [isPlaying, speedMultiplier]);
 
     useEffect(() => {
         if (!isPlaying || !containerRef.current) return;
@@ -109,7 +113,7 @@ export const TeleprompterView: React.FC<TeleprompterViewProps> = ({ segments, on
                         {segments.map((seg, idx) => {
                             const active = elapsedTime >= segmentTimeMap[idx].start && elapsedTime < segmentTimeMap[idx].end;
                             return (
-                                <div key={seg.id} ref={el => segmentRefs.current[idx] = el} className="mb-12 font-bold text-center leading-tight transition-all duration-300" style={{ fontSize: config.fontSize, opacity: active ? 1 : config.guideOpacity, color: active ? config.fontColor : config.ghostColor }}>
+                                <div key={seg.id} ref={(el) => { segmentRefs.current[idx] = el; }} className="mb-12 font-bold text-center leading-tight transition-all duration-300" style={{ fontSize: config.fontSize, opacity: active ? 1 : config.guideOpacity, color: active ? config.fontColor : config.ghostColor }}>
                                     {seg.text}
                                 </div>
                             );
