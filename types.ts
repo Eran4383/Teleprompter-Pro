@@ -27,15 +27,17 @@ export enum AppMode {
 export type VideoFilterType = 'none' | 'warm' | 'cool' | 'bw';
 
 export interface PromptConfig {
-    fontSize: number; // in pixels
+    fontSize: number;
     isMirrored: boolean;
+    isLandscape: boolean; // NEW
     overlayColor: string;
-    guideOpacity: number; // 0.1 to 1.0
+    guideOpacity: number;
     showTimer: boolean;
     videoFilter: VideoFilterType;
-    // Advanced Video Props
-    videoScale: number; // 0.5 to 2.0
-    brightness: number; // 0.5 to 2.0 (1 is default)
-    contrast: number;   // 0.5 to 2.0 (1 is default)
-    saturation: number; // 0 to 2.0 (1 is default)
+    videoScale: number;
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    fontColor: string; // NEW
+    ghostColor: string; // NEW
 }
