@@ -1,1 +1,0 @@
-// DEPRECATED - Content moved to src/features. Safe to delete.
