@@ -16,8 +16,8 @@ const hydrateSegment = (id: string, text: string, duration: number): ScriptSegme
 };
 
 export const optimizeScript = async (text: string): Promise<ScriptSegment[]> => {
-    // אתחול המופע כאן מבטיח שהאפליקציה לא תקרוס בטעינה ראשונית
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    // Fix: Using process.env.API_KEY directly as per SDK guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
         const response = await ai.models.generateContent({
@@ -64,7 +64,8 @@ export const optimizeScript = async (text: string): Promise<ScriptSegment[]> => 
 };
 
 export const generateScriptFromTopic = async (topic: string): Promise<ScriptSegment[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    // Fix: Using process.env.API_KEY directly as per SDK guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
         const response = await ai.models.generateContent({
