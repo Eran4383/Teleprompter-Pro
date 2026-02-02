@@ -72,7 +72,7 @@ export const useTeleprompterLoop = (
     const animate = useCallback((time: number) => {
         if (lastTimeRef.current !== undefined && isPlaying) {
             const deltaTime = time - lastTimeRef.current;
-            setElapsedTime(prev => {
+            setElapsedTime((prev: number) => {
                 const next = prev + (deltaTime * speedMultiplier);
                 return next >= totalDuration ? totalDuration : next;
             });

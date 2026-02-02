@@ -23,7 +23,7 @@ interface AppState {
     isPlaying: boolean;
     setIsPlaying: (playing: boolean) => void;
     elapsedTime: number;
-    setElapsedTime: (time: number) => void;
+    setElapsedTime: (time: number | ((prev: number) => number)) => void;
     speedMultiplier: number;
     setSpeedMultiplier: (speed: number) => void;
 
@@ -66,7 +66,9 @@ export const useAppStore = create<AppState>()(
             isPlaying: false,
             setIsPlaying: (isPlaying) => set({ isPlaying }),
             elapsedTime: 0,
-            setElapsedTime: (elapsedTime) => set({ elapsedTime }),
+            setElapsedTime: (elapsedTimeUpdate) => set((state) => ({
+                elapsedTime: typeof elapsedTimeUpdate === 'function' ? elapsedTimeUpdate(state.elapsedTime) : elapsedTimeUpdate
+            })),
             speedMultiplier: 1,
             setSpeedMultiplier: (speedMultiplier) => set({ speedMultiplier }),
 
