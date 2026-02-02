@@ -36,11 +36,16 @@ export interface PromptConfig {
     videoFilter: VideoFilterType;
     // Background Source
     bgMode: BackgroundMode;
+    bgVisible: boolean;
     videoVolume: number; // 0 to 1
     mirrorVideo: boolean;
+    // Focal Point
+    focalPosition: number; // 0.2 to 0.8 (percentage of screen height)
     // Advanced Video Props
-    videoScale: number; // 0.5 to 2.0
-    brightness: number; // 0.5 to 2.0 (1 is default)
-    contrast: number;   // 0.5 to 2.0 (1 is default)
-    saturation: number; // 0 to 2.0 (1 is default)
+    videoScale: number; // 0.5 to 3.0
+    videoTranslateX: number; // -100 to 100
+    videoTranslateY: number; // -100 to 100
+    brightness: number; // 0.5 to 2.5
+    contrast: number;   // 0.5 to 2.5
+    saturation: number; // 0 to 2.5
 }

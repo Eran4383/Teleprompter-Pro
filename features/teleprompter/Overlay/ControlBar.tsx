@@ -1,6 +1,6 @@
+
 import React from 'react';
 import { useAppStore } from '../../../store/useAppStore';
-import { Button } from '../../../components/ui/Button';
 
 interface ControlBarProps {
     isPlaying: boolean;
@@ -24,18 +24,18 @@ export const ControlBar: React.FC<ControlBarProps> = ({
     const { 
         speedMultiplier, setSpeedMultiplier, 
         isCameraActive, isRecording, 
-        setMode 
+        setMode, config, setConfig 
     } = useAppStore();
 
     return (
-        <div className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 px-6 py-4 pb-8 sm:pb-6 z-50 shadow-2xl" onDoubleClick={e => e.stopPropagation()}>
-            <div className="max-w-4xl mx-auto w-full flex flex-col sm:flex-row items-center justify-between gap-5">
+        <div className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 px-4 py-4 sm:px-6 z-50 shadow-2xl" onDoubleClick={e => e.stopPropagation()}>
+            <div className="max-w-5xl mx-auto w-full grid grid-cols-3 sm:flex sm:items-center sm:justify-between gap-4">
                 
-                {/* Exit & Settings */}
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+                {/* Left Section: Meta Controls */}
+                <div className="flex items-center gap-2 col-span-1">
                     <button 
                         onClick={() => setMode('EDITOR' as any)} 
-                        className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg"
+                        className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg shrink-0"
                         title="Back to Editor"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,26 +44,27 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                     </button>
                     <button 
                         onClick={onToggleSettings} 
-                        className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg"
-                        title="Open Prompt Settings"
+                        className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg shrink-0"
+                        title="Studio Settings"
                     >
                         ⚙️
                     </button>
-                    <div className="flex-1 sm:hidden flex items-center gap-3 px-3 bg-zinc-900/50 rounded-xl border border-zinc-800/50 h-11">
-                         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-tighter">SPD</span>
+                    
+                    {/* Desktop Speed */}
+                    <div className="hidden lg:flex items-center gap-3 w-32 bg-zinc-900/50 px-3 py-2 rounded-xl border border-zinc-800/50 ml-2">
                          <input 
                             type="range" min="0.1" max="2.5" step="0.1" 
                             value={speedMultiplier} 
                             onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} 
                             className="flex-1 accent-indigo-500 h-1 bg-zinc-800 rounded-lg cursor-pointer"
                         />
-                         <span className="text-xs font-mono text-zinc-300 w-8 text-right">{speedMultiplier.toFixed(1)}x</span>
+                         <span className="text-[9px] font-mono text-zinc-500">{speedMultiplier.toFixed(1)}x</span>
                     </div>
                 </div>
 
-                {/* Primary Playback Controls */}
-                <div className="flex items-center justify-center gap-6 sm:gap-8">
-                    <button onClick={onRewind} className="p-2 text-zinc-500 hover:text-white transition-colors text-xl" title="Rewind 5s">⏪</button>
+                {/* Center Section: Main Playback */}
+                <div className="flex items-center justify-center gap-4 sm:gap-8 col-span-1">
+                    <button onClick={onRewind} className="hidden sm:block p-2 text-zinc-500 hover:text-white transition-colors text-xl" title="Rewind 5s">⏪</button>
                     
                     <button 
                         onClick={onPlayPause} 
@@ -77,31 +78,51 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                         )}
                     </button>
 
-                    <button onClick={onStop} className="p-2 text-zinc-500 hover:text-white transition-colors" title="Stop & Reset">
+                    <button onClick={onStop} className="hidden sm:block p-2 text-zinc-500 hover:text-white transition-colors" title="Stop & Reset">
                         <div className="w-4 h-4 bg-white rounded-sm shadow-sm"/>
                     </button>
                 </div>
 
-                {/* Camera & Speed (Desktop) */}
-                <div className="flex items-center gap-6">
-                    <div className="hidden sm:flex items-center gap-3 w-40 bg-zinc-900/50 px-3 py-2 rounded-xl border border-zinc-800/50">
-                         <input 
-                            type="range" min="0.1" max="2.5" step="0.1" 
-                            value={speedMultiplier} 
-                            onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} 
-                            className="flex-1 accent-indigo-500 h-1 bg-zinc-800 rounded-lg cursor-pointer" 
-                            title="Playback Speed"
-                        />
-                         <span className="text-[10px] font-mono text-zinc-500 w-8">{speedMultiplier.toFixed(1)}x</span>
-                    </div>
+                {/* Right Section: Capture Controls */}
+                <div className="flex items-center justify-end gap-2 col-span-1">
+                    {/* Visibility Toggle */}
+                    <button 
+                        onClick={() => setConfig({ ...config, bgVisible: !config.bgVisible })}
+                        className={`p-3 rounded-xl border transition-all shadow-lg ${config.bgVisible ? 'bg-zinc-900 border-zinc-800 text-indigo-400' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}
+                        title="Toggle Background Visibility"
+                    >
+                        {config.bgVisible ? '👁️' : '🕶️'}
+                    </button>
 
+                    {/* Hardware Toggle */}
+                    <button 
+                        onClick={onToggleCamera}
+                        className={`hidden sm:flex p-3 rounded-xl border transition-all shadow-lg ${isCameraActive ? 'bg-zinc-900 border-indigo-900/50 text-indigo-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                        title="Hardware Camera"
+                    >
+                        📷
+                    </button>
+
+                    {/* Record Button */}
                     <button 
                         onClick={onToggleRecord} 
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg ${!isCameraActive ? 'bg-zinc-800 text-zinc-500 hover:text-red-500' : ''} ${isRecording ? 'bg-red-500/30 text-red-500 ring-2 ring-red-500 animate-pulse' : (isCameraActive ? 'bg-zinc-900 text-red-600 border border-red-900/50' : '')}`} 
-                        title={isCameraActive ? (isRecording ? "Stop Recording" : "Start Recording") : "Enable Camera to Record"}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg ${isRecording ? 'bg-red-500/30 text-red-500 ring-2 ring-red-500 animate-pulse' : 'bg-zinc-900 border border-zinc-800 text-red-600 hover:border-red-900/50'}`} 
+                        title={isRecording ? "Stop Recording" : "Start Recording"}
                     >
                         <div className={`w-4 h-4 bg-current shadow-sm transition-all duration-300 ${isRecording ? 'rounded-sm' : 'rounded-full'}`}/>
                     </button>
+                </div>
+
+                {/* Mobile Speed Row */}
+                <div className="flex sm:hidden col-span-3 items-center gap-3 px-3 py-1 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
+                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">SPD</span>
+                    <input 
+                        type="range" min="0.1" max="2.5" step="0.1" 
+                        value={speedMultiplier} 
+                        onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} 
+                        className="flex-1 accent-indigo-500 h-1 bg-zinc-800 rounded-lg cursor-pointer"
+                    />
+                    <span className="text-[10px] font-mono text-zinc-300">{speedMultiplier.toFixed(1)}x</span>
                 </div>
             </div>
         </div>

@@ -34,16 +34,16 @@ export const useTeleprompterLoop = (
     const syncTimeFromScroll = useCallback(() => {
         if (!containerRef.current) return;
         const container = containerRef.current;
-        const center = container.scrollTop + (container.clientHeight / 2);
+        const focalY = container.scrollTop + (container.clientHeight * config.focalPosition);
         
         let activeIdx = -1;
         for (let i = 0; i < segmentRefs.current.length; i++) {
             const el = segmentRefs.current[i];
-            if (el && (el.offsetTop <= center && el.offsetTop + el.clientHeight >= center)) {
+            if (el && (el.offsetTop <= focalY && el.offsetTop + el.clientHeight >= focalY)) {
                 activeIdx = i;
                 break;
             }
-            if (el && el.offsetTop > center) {
+            if (el && el.offsetTop > focalY) {
                 activeIdx = i > 0 ? i - 1 : 0;
                 break;
             }
@@ -65,19 +65,17 @@ export const useTeleprompterLoop = (
         const segMap = segmentTimeMap[activeIdx];
 
         if (el && segMap) {
-            const dist = center - el.offsetTop;
+            const dist = focalY - el.offsetTop;
             const ratio = Math.max(0, Math.min(1, dist / el.clientHeight));
             setElapsedTime(segMap.start + (segMap.duration * ratio));
         }
-    }, [containerRef, segmentRefs, segments.length, setElapsedTime, totalDuration, segmentTimeMap]);
+    }, [containerRef, segmentRefs, segments.length, setElapsedTime, totalDuration, segmentTimeMap, config.focalPosition]);
 
     const animate = useCallback((time: number) => {
         if (lastTimeRef.current !== undefined && isPlaying) {
             const deltaTime = time - lastTimeRef.current;
             const nextTime = elapsedTime + (deltaTime * speedMultiplier);
             
-            // Continuous Playback Feature:
-            // Auto-stop is only active in Camera Mode. In Video Mode, we let the timer keep running.
             if (config.bgMode === 'camera' && nextTime >= totalDuration) {
                 setElapsedTime(totalDuration);
                 setIsPlaying(false);
@@ -87,29 +85,20 @@ export const useTeleprompterLoop = (
 
             const currentElapsed = (config.bgMode === 'camera' && nextTime >= totalDuration) ? totalDuration : nextTime;
 
-            // Background Video Sync Logic (Master-Slave)
             if (config.bgMode === 'video' && videoRef.current) {
                 const video = videoRef.current;
-                
-                // Keep video playback state in sync if it hasn't ended natively
                 if (video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
-                
-                // Sync playback speed
                 if (video.playbackRate !== speedMultiplier) {
                     video.playbackRate = speedMultiplier;
                 }
-
-                // Drift detection and correction (every 500ms)
                 if (time - lastSyncTimeRef.current > 500) {
                     const expectedVideoTime = currentElapsed / 1000;
                     const actualVideoTime = video.currentTime;
-                    
-                    // Only apply drift correction if the video hasn't ended
                     if (!video.ended) {
                         const drift = Math.abs(expectedVideoTime - actualVideoTime);
-                        if (drift > 0.15) { // Threshold for correction
+                        if (drift > 0.15) {
                             video.currentTime = expectedVideoTime;
                         }
                     }
@@ -131,7 +120,6 @@ export const useTeleprompterLoop = (
         };
     }, [animate]);
 
-    // Handle Scrolling Sync
     useEffect(() => {
         if (!isPlaying || isManualScroll.current || !containerRef.current) return;
 
@@ -148,7 +136,8 @@ export const useTeleprompterLoop = (
                 const segmentData = segmentTimeMap[activeSegmentIndex];
                 const segmentProgress = (elapsedTime - segmentData.start) / (segmentData.end - segmentData.start);
                 
-                const targetScroll = elTop - (containerHeight / 2) + (elHeight / 2);
+                // Target: Segment center aligns with Focal Position
+                const targetScroll = elTop - (containerHeight * config.focalPosition) + (elHeight / 2);
                 const scrollOffset = targetScroll + (elHeight * segmentProgress) - (elHeight/2);
 
                 containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
@@ -157,11 +146,11 @@ export const useTeleprompterLoop = (
             const firstEl = segmentRefs.current[0];
             if (firstEl && containerRef.current) {
                  const containerHeight = containerRef.current.clientHeight;
-                 const targetScroll = firstEl.offsetTop - (containerHeight / 2) + (firstEl.clientHeight / 2);
+                 const targetScroll = firstEl.offsetTop - (containerHeight * config.focalPosition) + (firstEl.clientHeight / 2);
                  containerRef.current.scrollTo({ top: targetScroll, behavior: 'smooth' });
             }
         }
-    }, [elapsedTime, segmentTimeMap, isPlaying, containerRef, segmentRefs]);
+    }, [elapsedTime, segmentTimeMap, isPlaying, containerRef, segmentRefs, config.focalPosition]);
 
     const handlePlayPause = () => {
         if (!isPlaying && isManualScroll.current) {

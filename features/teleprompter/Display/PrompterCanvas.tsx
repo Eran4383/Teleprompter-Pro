@@ -1,3 +1,4 @@
+
 import React, { forwardRef } from 'react';
 import { useAppStore } from '../../../store/useAppStore';
 import { SegmentText } from './SegmentText';
@@ -21,8 +22,11 @@ export const PrompterCanvas = forwardRef<HTMLDivElement, PrompterCanvasProps>(({
 
     return (
         <div className="flex-1 relative overflow-hidden z-10" onDoubleClick={e => e.stopPropagation()}>
-            {/* Focal Line Guide */}
-            <div className="absolute inset-0 pointer-events-none z-20 flex items-center">
+            {/* Focal Line Guide - Dynamic Position */}
+            <div 
+                className="absolute left-0 right-0 pointer-events-none z-20 transition-all duration-300 ease-out"
+                style={{ top: `${config.focalPosition * 100}%` }}
+            >
                 <div className="w-full h-[2px] bg-red-600/50 shadow-[0_0_15px_rgba(220,38,38,0.6)]" />
             </div>
 
@@ -34,7 +38,7 @@ export const PrompterCanvas = forwardRef<HTMLDivElement, PrompterCanvasProps>(({
                 onScroll={onScroll} 
                 className={`h-full overflow-y-auto relative ${config.isMirrored ? 'scale-y-[-1] scale-x-[-1]' : ''} touch-pan-y no-scrollbar`}
             >
-                <div className="py-[50vh] px-8 max-w-5xl mx-auto">
+                <div className="py-[100vh] px-8 max-w-5xl mx-auto">
                     {segments.map((seg, idx) => {
                         const isActive = elapsedTime >= segmentTimeMap[idx]?.start && elapsedTime < segmentTimeMap[idx]?.end;
                         return (

@@ -82,9 +82,13 @@ export const useAppStore = create<AppState>()(
                 showTimer: true,
                 videoFilter: 'none',
                 bgMode: 'camera',
+                bgVisible: true,
                 videoVolume: 0,
                 mirrorVideo: true,
+                focalPosition: 0.5,
                 videoScale: 1.0,
+                videoTranslateX: 0,
+                videoTranslateY: 0,
                 brightness: 1.0,
                 contrast: 1.0,
                 saturation: 1.0,
@@ -110,7 +114,7 @@ export const useAppStore = create<AppState>()(
             setToast: (toast) => set({ toast }),
         }),
         {
-            name: 'teleprompter_v2_storage',
+            name: 'teleprompter_v2_storage_v3',
             partialize: (state) => ({
                 config: state.config,
                 savedScripts: state.savedScripts,

@@ -21,17 +21,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
         const video = videoRef.current;
 
         if (config.bgMode === 'video' && videoFileUrl) {
-            // Setup for Video Mode
             video.srcObject = null;
             video.src = videoFileUrl;
-            video.loop = false; // Sync is handled by hook
+            video.loop = false;
             video.muted = config.videoVolume === 0;
             video.volume = config.videoVolume;
             video.load();
         } else if (config.bgMode === 'camera') {
-            // Setup for Camera Mode
             video.src = '';
-            // Camera stream is assigned via srcObject in useCameraManager
             video.muted = true;
         }
     }, [config.bgMode, videoFileUrl, videoRef]);
@@ -50,7 +47,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
         `saturate(${config.saturation})`
     ].filter(Boolean).join(' ');
 
-    const showVideo = config.bgMode === 'camera' ? isCameraActive : !!videoFileUrl;
+    const showVideoSource = config.bgMode === 'camera' ? isCameraActive : !!videoFileUrl;
+    const finalOpacity = config.bgVisible && showVideoSource ? 'opacity-100' : 'opacity-0';
 
     return (
         <video 
@@ -58,9 +56,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
             autoPlay 
             playsInline 
             muted={config.bgMode === 'camera' || config.videoVolume === 0}
-            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700 ${showVideo ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700 ${finalOpacity}`}
             style={{ 
-                transform: `${config.mirrorVideo ? 'scaleX(-1)' : ''} scale(${config.videoScale})`, 
+                transform: `
+                    ${config.mirrorVideo ? 'scaleX(-1)' : ''} 
+                    scale(${config.videoScale}) 
+                    translate(${config.videoTranslateX}%, ${config.videoTranslateY}%)
+                `, 
                 filter: videoFilters 
             }} 
         />
