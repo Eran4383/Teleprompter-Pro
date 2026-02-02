@@ -29,9 +29,9 @@ interface AppState {
 
     // Config
     config: PromptConfig;
-    setConfig: (config: PromptConfig | ((prev: PromptConfig) => PromptConfig)) => void;
+    setConfig: (configUpdate: PromptConfig | ((prev: PromptConfig) => PromptConfig)) => void;
 
-    // Camera State
+    // Camera & Video State
     isCameraActive: boolean;
     setIsCameraActive: (active: boolean) => void;
     isRecording: boolean;
@@ -40,6 +40,8 @@ interface AppState {
     setCameraCapabilities: (caps: MediaTrackCapabilities | null) => void;
     cameraSettings: MediaTrackSettings | null;
     setCameraSettings: (settings: MediaTrackSettings | null) => void;
+    videoFileUrl: string | null;
+    setVideoFileUrl: (url: string | null) => void;
 
     // UI State
     activeEditorTab: 'write' | 'tune' | 'history';
@@ -79,6 +81,9 @@ export const useAppStore = create<AppState>()(
                 guideOpacity: 0.2,
                 showTimer: true,
                 videoFilter: 'none',
+                bgMode: 'camera',
+                videoVolume: 0,
+                mirrorVideo: true,
                 videoScale: 1.0,
                 brightness: 1.0,
                 contrast: 1.0,
@@ -96,6 +101,8 @@ export const useAppStore = create<AppState>()(
             setCameraCapabilities: (cameraCapabilities) => set({ cameraCapabilities }),
             cameraSettings: null,
             setCameraSettings: (cameraSettings) => set({ cameraSettings }),
+            videoFileUrl: null,
+            setVideoFileUrl: (videoFileUrl) => set({ videoFileUrl }),
 
             activeEditorTab: 'write',
             setActiveEditorTab: (activeEditorTab) => set({ activeEditorTab }),

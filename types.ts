@@ -25,6 +25,7 @@ export enum AppMode {
 }
 
 export type VideoFilterType = 'none' | 'warm' | 'cool' | 'bw';
+export type BackgroundMode = 'camera' | 'video';
 
 export interface PromptConfig {
     fontSize: number; // in pixels
@@ -33,6 +34,10 @@ export interface PromptConfig {
     guideOpacity: number; // 0.1 to 1.0
     showTimer: boolean;
     videoFilter: VideoFilterType;
+    // Background Source
+    bgMode: BackgroundMode;
+    videoVolume: number; // 0 to 1
+    mirrorVideo: boolean;
     // Advanced Video Props
     videoScale: number; // 0.5 to 2.0
     brightness: number; // 0.5 to 2.0 (1 is default)

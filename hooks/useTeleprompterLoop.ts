@@ -1,21 +1,23 @@
 
-// Fix: Import React to resolve namespace error on React.RefObject and React.MutableRefObject
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 
 export const useTeleprompterLoop = (
     containerRef: React.RefObject<HTMLDivElement | null>,
-    segmentRefs: React.MutableRefObject<(HTMLDivElement | null)[]>
+    segmentRefs: React.MutableRefObject<(HTMLDivElement | null)[]>,
+    videoRef: React.RefObject<HTMLVideoElement | null>
 ) => {
     const {
         segments,
         isPlaying, setIsPlaying,
         elapsedTime, setElapsedTime,
-        speedMultiplier
+        speedMultiplier,
+        config
     } = useAppStore();
 
     const requestRef = useRef<number | undefined>(undefined);
     const lastTimeRef = useRef<number | undefined>(undefined);
+    const lastSyncTimeRef = useRef<number>(0);
     const isManualScroll = useRef(false);
 
     const totalDuration = useMemo(() => segments.reduce((acc, seg) => acc + seg.duration, 0), [segments]);
@@ -72,14 +74,43 @@ export const useTeleprompterLoop = (
     const animate = useCallback((time: number) => {
         if (lastTimeRef.current !== undefined && isPlaying) {
             const deltaTime = time - lastTimeRef.current;
-            setElapsedTime((prev: number) => {
-                const next = prev + (deltaTime * speedMultiplier);
-                return next >= totalDuration ? totalDuration : next;
-            });
+            const nextTime = elapsedTime + (deltaTime * speedMultiplier);
+            const clampedTime = nextTime >= totalDuration ? totalDuration : nextTime;
+            setElapsedTime(clampedTime);
+
+            // Background Video Sync Logic (Master-Slave)
+            if (config.bgMode === 'video' && videoRef.current) {
+                const video = videoRef.current;
+                
+                // Keep video playback state in sync
+                if (video.paused && clampedTime < totalDuration) {
+                    video.play().catch(() => {});
+                }
+                
+                // Sync playback speed
+                if (video.playbackRate !== speedMultiplier) {
+                    video.playbackRate = speedMultiplier;
+                }
+
+                // Drift detection and correction (every 500ms)
+                if (time - lastSyncTimeRef.current > 500) {
+                    const expectedVideoTime = clampedTime / 1000;
+                    const actualVideoTime = video.currentTime;
+                    const drift = Math.abs(expectedVideoTime - actualVideoTime);
+
+                    if (drift > 0.15) { // Threshold for correction
+                        video.currentTime = expectedVideoTime;
+                    }
+                    lastSyncTimeRef.current = time;
+                }
+            }
+        } else if (!isPlaying && config.bgMode === 'video' && videoRef.current) {
+            if (!videoRef.current.paused) videoRef.current.pause();
         }
+
         lastTimeRef.current = time;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime]);
+    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, videoRef]);
 
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
@@ -88,6 +119,7 @@ export const useTeleprompterLoop = (
         };
     }, [animate]);
 
+    // Handle Scrolling Sync
     useEffect(() => {
         if (!isPlaying || isManualScroll.current || !containerRef.current) return;
 
@@ -133,6 +165,10 @@ export const useTeleprompterLoop = (
         setElapsedTime(0);
         isManualScroll.current = false;
         lastTimeRef.current = undefined;
+        if (config.bgMode === 'video' && videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.pause();
+        }
     };
 
     const handleUserInteraction = () => {
@@ -143,6 +179,11 @@ export const useTeleprompterLoop = (
     const handleScroll = () => {
         if (!isPlaying) {
             syncTimeFromScroll();
+            // In video mode, seek video to matching scroll position
+            if (config.bgMode === 'video' && videoRef.current) {
+                // Time is updated by syncTimeFromScroll
+                // We'll rely on the next animation frame or force it
+            }
         }
     };
 

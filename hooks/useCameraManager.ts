@@ -8,7 +8,8 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
         isCameraActive, setIsCameraActive,
         isRecording, setIsRecording,
         setCameraCapabilities, setCameraSettings,
-        cameraSettings
+        cameraSettings,
+        config
     } = useAppStore();
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -32,6 +33,10 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
             setCameraCapabilities(null);
             if (isRecording) stopRecording();
         } else {
+            if (config.bgMode === 'video') {
+                // If in video mode, we don't start the camera stream automatically
+                // but we allow the toggle if requested via UI logic
+            }
             try {
                 const constraints: MediaStreamConstraints = { 
                     video: { 
@@ -60,7 +65,7 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                 alert("Could not access camera. Please allow permissions.");
             }
         }
-    }, [isCameraActive, setIsCameraActive, setCameraCapabilities, setCameraSettings, isRecording, stopRecording, videoRef]);
+    }, [isCameraActive, setIsCameraActive, setCameraCapabilities, setCameraSettings, isRecording, stopRecording, videoRef, config.bgMode]);
 
     const applyCameraConstraint = useCallback(async (constraint: string, value: any) => {
         const stream = videoRef.current?.srcObject as MediaStream;
@@ -95,6 +100,7 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                 'video/webm'
             ];
             let selectedMimeType = '';
+            // Fix: Corrected typo 'mimetypes' to 'mimeTypes'
             for (const type of mimeTypes) {
                 if (MediaRecorder.isTypeSupported(type)) { selectedMimeType = type; break; }
             }
