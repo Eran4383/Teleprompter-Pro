@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useAppStore } from '../../../store/useAppStore';
+import { VideoScrubber } from './SettingsParts/Playback/VideoScrubber';
 
 interface ControlBarProps {
     isPlaying: boolean;
@@ -10,6 +11,7 @@ interface ControlBarProps {
     onToggleSettings: () => void;
     onToggleCamera: () => void;
     onToggleRecord: () => void;
+    videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 export const ControlBar: React.FC<ControlBarProps> = ({
@@ -19,7 +21,8 @@ export const ControlBar: React.FC<ControlBarProps> = ({
     onRewind,
     onToggleSettings,
     onToggleCamera,
-    onToggleRecord
+    onToggleRecord,
+    videoRef
 }) => {
     const { 
         speedMultiplier, setSpeedMultiplier, 
@@ -28,8 +31,11 @@ export const ControlBar: React.FC<ControlBarProps> = ({
     } = useAppStore();
 
     return (
-        <div className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 px-4 py-4 sm:px-6 z-50 shadow-2xl" onDoubleClick={e => e.stopPropagation()}>
-            <div className="max-w-5xl mx-auto w-full grid grid-cols-3 sm:flex sm:items-center sm:justify-between gap-4">
+        <div className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 relative z-50 shadow-2xl" onDoubleClick={e => e.stopPropagation()}>
+            {/* Integrated Video Timeline (Visible only in Free Mode) */}
+            <VideoScrubber videoRef={videoRef} />
+
+            <div className="max-w-5xl mx-auto w-full px-4 py-4 sm:px-6 grid grid-cols-3 sm:flex sm:items-center sm:justify-between gap-4">
                 
                 {/* Left Section: Meta Controls */}
                 <div className="flex items-center gap-2 col-span-1">

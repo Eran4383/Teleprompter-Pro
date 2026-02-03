@@ -5,7 +5,7 @@ import { SourceSelector } from './SettingsParts/SourceSelector';
 import { FocalControls } from './SettingsParts/FocalControls';
 import { TransformControls } from './SettingsParts/TransformControls';
 import { AppearanceControls } from './SettingsParts/AppearanceControls';
-import { PlaybackModeSelector, VideoScrubber } from './SettingsParts/Playback';
+import { PlaybackModeSelector } from './SettingsParts/Playback';
 
 interface SettingsMenuProps {
     isOpen: boolean;
@@ -81,7 +81,6 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, app
                 {config.bgMode === 'video' && (
                     <section className="space-y-4 pt-4 border-t border-zinc-900">
                         <PlaybackModeSelector />
-                        <VideoScrubber videoRef={videoRef} />
                     </section>
                 )}
 

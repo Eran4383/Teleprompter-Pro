@@ -110,7 +110,11 @@ export const useTeleprompterLoop = (
                 }
             }
         } else if (!isPlaying && config.bgMode === 'video' && videoRef.current) {
-            if (!videoRef.current.paused) videoRef.current.pause();
+            // Logic Fix: Only pause video on prompter stop IF Sync Mode is Linked.
+            // In Free Mode, the video continues independently even if prompter stops/scrolls.
+            if (config.videoSyncEnabled) {
+                if (!videoRef.current.paused) videoRef.current.pause();
+            }
         }
 
         lastTimeRef.current = time;
@@ -177,7 +181,11 @@ export const useTeleprompterLoop = (
     };
 
     const handleUserInteraction = () => {
-        if (isPlaying) setIsPlaying(false);
+        // Logic Fix: In Free Mode, manual text interactions do NOT stop the animation/video logic.
+        // It simply marks that the user is currently overriding the scroll position.
+        if (isPlaying && config.videoSyncEnabled) {
+            setIsPlaying(false);
+        }
         isManualScroll.current = true;
     };
 

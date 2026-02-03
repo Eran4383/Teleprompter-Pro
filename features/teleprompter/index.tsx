@@ -96,6 +96,7 @@ export const PrompterFeature: React.FC = () => {
                 onToggleSettings={() => setShowSettings(s => !s)}
                 onToggleCamera={toggleCamera}
                 onToggleRecord={onToggleRecord}
+                videoRef={videoRef}
             />
         </div>
     );
