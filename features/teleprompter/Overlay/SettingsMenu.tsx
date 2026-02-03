@@ -6,6 +6,7 @@ import { FocalControls } from './SettingsParts/FocalControls';
 import { TransformControls } from './SettingsParts/TransformControls';
 import { AppearanceControls } from './SettingsParts/AppearanceControls';
 import { PlaybackModeSelector } from './SettingsParts/Playback';
+import { AutomationControls } from './SettingsParts/Automation';
 
 interface SettingsMenuProps {
     isOpen: boolean;
@@ -83,6 +84,8 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, app
                         <PlaybackModeSelector />
                     </section>
                 )}
+
+                <AutomationControls />
 
                 <FocalControls />
                 <TransformControls />

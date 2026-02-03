@@ -1,6 +1,7 @@
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { useAutomationEngine } from './useAutomationEngine';
 
 export const useTeleprompterLoop = (
     containerRef: React.RefObject<HTMLDivElement | null>,
@@ -14,6 +15,8 @@ export const useTeleprompterLoop = (
         speedMultiplier,
         config
     } = useAppStore();
+
+    const { record, getInterpolatedPosition } = useAutomationEngine();
 
     const requestRef = useRef<number | undefined>(undefined);
     const lastTimeRef = useRef<number | undefined>(undefined);
@@ -88,7 +91,6 @@ export const useTeleprompterLoop = (
             if (config.bgMode === 'video' && videoRef.current) {
                 const video = videoRef.current;
                 
-                // Ensure video plays/pauses with prompter
                 if (video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
@@ -96,7 +98,6 @@ export const useTeleprompterLoop = (
                     video.playbackRate = speedMultiplier;
                 }
 
-                // Only force sync if enabled
                 if (config.videoSyncEnabled && time - lastSyncTimeRef.current > 500) {
                     const expectedVideoTime = currentElapsed / 1000;
                     const actualVideoTime = video.currentTime;
@@ -109,9 +110,19 @@ export const useTeleprompterLoop = (
                     lastSyncTimeRef.current = time;
                 }
             }
+
+            // --- Automation Performance Drive ---
+            if (config.automationMode === 'recording' && containerRef.current) {
+                record(containerRef.current.scrollTop);
+            }
+            
+            if (config.automationMode === 'playback' && containerRef.current) {
+                const targetScroll = getInterpolatedPosition(currentElapsed);
+                if (targetScroll !== null) {
+                    containerRef.current.scrollTo({ top: targetScroll, behavior: 'auto' });
+                }
+            }
         } else if (!isPlaying && config.bgMode === 'video' && videoRef.current) {
-            // Logic Fix: Only pause video on prompter stop IF Sync Mode is Linked.
-            // In Free Mode, the video continues independently even if prompter stops/scrolls.
             if (config.videoSyncEnabled) {
                 if (!videoRef.current.paused) videoRef.current.pause();
             }
@@ -119,7 +130,7 @@ export const useTeleprompterLoop = (
 
         lastTimeRef.current = time;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, config.videoSyncEnabled, videoRef, setIsPlaying]);
+    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, config.videoSyncEnabled, config.automationMode, videoRef, setIsPlaying, record, getInterpolatedPosition, containerRef]);
 
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
@@ -129,7 +140,8 @@ export const useTeleprompterLoop = (
     }, [animate]);
 
     useEffect(() => {
-        if (!isPlaying || isManualScroll.current || !containerRef.current) return;
+        // Only run auto-scroll if NOT in Automation Playback Mode
+        if (!isPlaying || isManualScroll.current || !containerRef.current || config.automationMode === 'playback') return;
 
         const activeSegmentIndex = segmentTimeMap.findIndex(
             map => elapsedTime >= map.start && elapsedTime < map.end
@@ -144,7 +156,6 @@ export const useTeleprompterLoop = (
                 const segmentData = segmentTimeMap[activeSegmentIndex];
                 const segmentProgress = (elapsedTime - segmentData.start) / (segmentData.end - segmentData.start);
                 
-                // Target: Segment center aligns with Focal Position
                 const targetScroll = elTop - (containerHeight * config.focalPosition) + (elHeight / 2);
                 const scrollOffset = targetScroll + (elHeight * segmentProgress) - (elHeight/2);
 
@@ -158,7 +169,7 @@ export const useTeleprompterLoop = (
                  containerRef.current.scrollTo({ top: targetScroll, behavior: 'smooth' });
             }
         }
-    }, [elapsedTime, segmentTimeMap, isPlaying, containerRef, segmentRefs, config.focalPosition]);
+    }, [elapsedTime, segmentTimeMap, isPlaying, containerRef, segmentRefs, config.focalPosition, config.automationMode]);
 
     const handlePlayPause = () => {
         if (!isPlaying && isManualScroll.current) {
@@ -181,8 +192,12 @@ export const useTeleprompterLoop = (
     };
 
     const handleUserInteraction = () => {
-        // Logic Fix: In Free Mode, manual text interactions do NOT stop the animation/video logic.
-        // It simply marks that the user is currently overriding the scroll position.
+        // If recording automation, we WANT manual interaction to be recorded, so we don't stop the prompter.
+        if (isPlaying && config.automationMode === 'recording') {
+            isManualScroll.current = true;
+            return;
+        }
+
         if (isPlaying && config.videoSyncEnabled) {
             setIsPlaying(false);
         }

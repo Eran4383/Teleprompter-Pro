@@ -2,6 +2,7 @@
 import React from 'react';
 import { useAppStore } from '../../../store/useAppStore';
 import { VideoScrubber } from './SettingsParts/Playback/VideoScrubber';
+import { StatusIndicator } from './SettingsParts/Automation/StatusIndicator';
 
 interface ControlBarProps {
     isPlaying: boolean;
@@ -56,6 +57,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                         ⚙️
                     </button>
                     
+                    <div className="hidden sm:flex items-center gap-2">
+                         <StatusIndicator />
+                    </div>
+                    
                     {/* Sync Toggle */}
                     {config.bgMode === 'video' && (
                         <button 
@@ -66,17 +71,6 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                             {config.videoSyncEnabled ? '🔗' : '🔓'}
                         </button>
                     )}
-                    
-                    {/* Desktop Speed */}
-                    <div className="hidden lg:flex items-center gap-3 w-32 bg-zinc-900/50 px-3 py-2 rounded-xl border border-zinc-800/50 ml-2">
-                         <input 
-                            type="range" min="0.1" max="2.5" step="0.1" 
-                            value={speedMultiplier} 
-                            onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} 
-                            className="flex-1 accent-indigo-500 h-1 bg-zinc-800 rounded-lg cursor-pointer"
-                        />
-                         <span className="text-[9px] font-mono text-zinc-500">{speedMultiplier.toFixed(1)}x</span>
-                    </div>
                 </div>
 
                 {/* Center Section: Main Playback */}
@@ -102,7 +96,11 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
                 {/* Right Section: Capture Controls */}
                 <div className="flex items-center justify-end gap-2 col-span-1">
-                    {/* Visibility Toggle */}
+                    {/* Speed Indicator (Desktop) */}
+                    <div className="hidden lg:flex items-center gap-2 bg-zinc-900/50 px-2 py-1 rounded-lg border border-zinc-800/50 mr-2">
+                         <span className="text-[10px] font-mono text-zinc-500">{speedMultiplier.toFixed(1)}x</span>
+                    </div>
+
                     <button 
                         onClick={() => setConfig({ ...config, bgVisible: !config.bgVisible })}
                         className={`p-3 rounded-xl border transition-all shadow-lg ${config.bgVisible ? 'bg-zinc-900 border-zinc-800 text-indigo-400' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}
@@ -111,16 +109,6 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                         {config.bgVisible ? '👁️' : '🕶️'}
                     </button>
 
-                    {/* Hardware Toggle */}
-                    <button 
-                        onClick={onToggleCamera}
-                        className={`hidden sm:flex p-3 rounded-xl border transition-all shadow-lg ${isCameraActive ? 'bg-zinc-900 border-indigo-900/50 text-indigo-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
-                        title="Hardware Camera"
-                    >
-                        📷
-                    </button>
-
-                    {/* Record Button */}
                     <button 
                         onClick={onToggleRecord} 
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg ${isRecording ? 'bg-red-500/30 text-red-500 ring-2 ring-red-500 animate-pulse' : 'bg-zinc-900 border border-zinc-800 text-red-600 hover:border-red-900/50'}`} 
@@ -130,16 +118,18 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                     </button>
                 </div>
 
-                {/* Mobile Speed Row */}
-                <div className="flex sm:hidden col-span-3 items-center gap-3 px-3 py-1 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
-                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">SPD</span>
-                    <input 
-                        type="range" min="0.1" max="2.5" step="0.1" 
-                        value={speedMultiplier} 
-                        onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} 
-                        className="flex-1 accent-indigo-500 h-1 bg-zinc-800 rounded-lg cursor-pointer"
-                    />
-                    <span className="text-[10px] font-mono text-zinc-300">{speedMultiplier.toFixed(1)}x</span>
+                {/* Mobile Speed/Status Row */}
+                <div className="flex sm:hidden col-span-3 items-center justify-between px-3 py-1 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
+                    <StatusIndicator />
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">SPD</span>
+                        <input 
+                            type="range" min="0.1" max="2.5" step="0.1" 
+                            value={speedMultiplier} 
+                            onChange={e => setSpeedMultiplier(parseFloat(e.target.value))} 
+                            className="w-20 accent-indigo-500 h-1 bg-zinc-800 rounded-lg cursor-pointer"
+                        />
+                    </div>
                 </div>
             </div>
         </div>

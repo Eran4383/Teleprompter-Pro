@@ -26,6 +26,17 @@ export enum AppMode {
 
 export type VideoFilterType = 'none' | 'warm' | 'cool' | 'bw';
 export type BackgroundMode = 'camera' | 'video';
+export type AutomationMode = 'manual' | 'recording' | 'playback';
+
+export interface AutomationKeyframe {
+    t: number; // time in ms
+    s: number; // scroll top in px
+}
+
+export interface AutomationTrack {
+    scriptId: string;
+    keyframes: AutomationKeyframe[];
+}
 
 export interface PromptConfig {
     fontSize: number; // in pixels
@@ -50,4 +61,6 @@ export interface PromptConfig {
     saturation: number; // 0 to 2.5
     // Playback Sync
     videoSyncEnabled: boolean;
+    // Automation Mode
+    automationMode: AutomationMode;
 }
