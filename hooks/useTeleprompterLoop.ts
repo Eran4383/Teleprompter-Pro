@@ -90,19 +90,24 @@ export const useTeleprompterLoop = (
 
             if (config.bgMode === 'video' && videoRef.current) {
                 const video = videoRef.current;
+                
+                // Ensure video is playing and speed matches
                 if (video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
                 if (video.playbackRate !== speedMultiplier) {
                     video.playbackRate = speedMultiplier;
                 }
-                if (config.videoSyncEnabled && time - lastSyncTimeRef.current > 500) {
+
+                // Strictly sync video time to text position in Linked mode
+                if (config.videoSyncEnabled) {
                     const expectedVideoTime = currentElapsed / 1000;
-                    if (!video.ended) {
-                        const drift = Math.abs(expectedVideoTime - video.currentTime);
-                        if (drift > 0.15) video.currentTime = expectedVideoTime;
+                    const drift = Math.abs(expectedVideoTime - video.currentTime);
+                    
+                    // Frequent checks for tight sync
+                    if (drift > 0.1) {
+                        video.currentTime = expectedVideoTime;
                     }
-                    lastSyncTimeRef.current = time;
                 }
             }
 
@@ -119,8 +124,8 @@ export const useTeleprompterLoop = (
                 }
             }
         } else if (!isPlaying && config.bgMode === 'video' && videoRef.current) {
-            if (config.videoSyncEnabled) {
-                if (!videoRef.current.paused) videoRef.current.pause();
+            if (config.videoSyncEnabled && !videoRef.current.paused) {
+                videoRef.current.pause();
             }
         }
 
@@ -136,7 +141,8 @@ export const useTeleprompterLoop = (
     }, [animate]);
 
     useEffect(() => {
-        // Linear Auto-Scroll Logic (Active in Manual & Recording modes)
+        // Auto-scroll logic (Active in Manual & Recording modes)
+        // Note: In Recording mode, we still auto-scroll so user only has to "nudge" corrections
         if (!isPlaying || isManualScroll.current || !containerRef.current || config.automationMode === 'playback') return;
 
         const activeIdx = segmentTimeMap.findIndex(m => elapsedTime >= m.start && elapsedTime < m.end);
@@ -180,6 +186,15 @@ export const useTeleprompterLoop = (
             setIsPlaying(false);
             return;
         }
+
+        // CRITICAL FIX: If recording, don't stop playback. This allows "Hybrid Corrections".
+        if (isPlaying && config.automationMode === 'recording') {
+            isManualScroll.current = true;
+            return;
+        }
+
+        // Standard behavior: pause on interaction
+        if (isPlaying) setIsPlaying(false);
         isManualScroll.current = true;
     };
 

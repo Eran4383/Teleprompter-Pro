@@ -74,7 +74,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                 </div>
 
                 {/* Center Section: Main Playback */}
-                <div className="flex items-center justify-center gap-4 sm:gap-8 col-span-1">
+                <div className="flex items-center justify-center gap-4 sm:gap-6 col-span-1">
                     <button onClick={onRewind} className="hidden sm:block p-2 text-zinc-500 hover:text-white transition-colors text-xl" title="Rewind 5s">⏪</button>
                     
                     <button 
@@ -89,8 +89,12 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                         )}
                     </button>
 
-                    <button onClick={onStop} className="hidden sm:block p-2 text-zinc-500 hover:text-white transition-colors" title="Stop & Reset">
-                        <div className="w-4 h-4 bg-white rounded-sm shadow-sm"/>
+                    <button 
+                        onClick={onStop} 
+                        className="p-3 bg-zinc-900 rounded-xl border border-zinc-800 text-zinc-500 hover:text-white transition-all shadow-lg" 
+                        title="Stop & Reset"
+                    >
+                        <div className="w-4 h-4 bg-current rounded-sm shadow-sm"/>
                     </button>
                 </div>
 
