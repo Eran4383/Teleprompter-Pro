@@ -27,16 +27,17 @@ export const ControlBar: React.FC<ControlBarProps> = ({
     const { 
         speedMultiplier, setSpeedMultiplier, 
         isCameraActive, isRecording, 
-        setMode, config, setConfig,
-        automationMode
+        setMode, config, setConfig 
     } = useAppStore();
 
     return (
         <div className="bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 relative z-50 shadow-2xl" onDoubleClick={e => e.stopPropagation()}>
+            {/* Integrated Video Timeline (Visible only in Free Mode) */}
             <VideoScrubber videoRef={videoRef} />
 
             <div className="max-w-5xl mx-auto w-full px-4 py-4 sm:px-6 grid grid-cols-3 sm:flex sm:items-center sm:justify-between gap-4">
                 
+                {/* Left Section: Meta Controls */}
                 <div className="flex items-center gap-2 col-span-1">
                     <button 
                         onClick={() => setMode('EDITOR' as any)} 
@@ -49,12 +50,13 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                     </button>
                     <button 
                         onClick={onToggleSettings} 
-                        className={`p-3 rounded-xl border transition-all shadow-lg shrink-0 ${automationMode !== 'IDLE' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'}`}
+                        className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all shadow-lg shrink-0"
                         title="Studio Settings"
                     >
                         ⚙️
                     </button>
                     
+                    {/* Sync Toggle */}
                     {config.bgMode === 'video' && (
                         <button 
                             onClick={() => setConfig({ ...config, videoSyncEnabled: !config.videoSyncEnabled })} 
@@ -65,6 +67,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                         </button>
                     )}
                     
+                    {/* Desktop Speed */}
                     <div className="hidden lg:flex items-center gap-3 w-32 bg-zinc-900/50 px-3 py-2 rounded-xl border border-zinc-800/50 ml-2">
                          <input 
                             type="range" min="0.1" max="2.5" step="0.1" 
@@ -76,16 +79,14 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                     </div>
                 </div>
 
+                {/* Center Section: Main Playback */}
                 <div className="flex items-center justify-center gap-4 sm:gap-8 col-span-1">
                     <button onClick={onRewind} className="hidden sm:block p-2 text-zinc-500 hover:text-white transition-colors text-xl" title="Rewind 5s">⏪</button>
                     
                     <button 
                         onClick={onPlayPause} 
-                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95 ${
-                            automationMode === 'RECORDING' ? 'bg-red-600 ring-4 ring-red-500/20' : 
-                            automationMode === 'PLAYBACK' ? 'bg-purple-600 ring-4 ring-purple-500/20' :
-                            isPlaying ? 'bg-indigo-600 ring-4 ring-indigo-500/20' : 'bg-green-600 ring-4 ring-green-500/20'
-                        }`} 
+                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95 ${isPlaying ? 'bg-indigo-600 ring-4 ring-indigo-500/20' : 'bg-green-600 ring-4 ring-green-500/20'}`} 
+                        title={isPlaying ? "Pause" : "Play"}
                     >
                         {isPlaying ? (
                             <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -99,29 +100,37 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                     </button>
                 </div>
 
+                {/* Right Section: Capture Controls */}
                 <div className="flex items-center justify-end gap-2 col-span-1">
+                    {/* Visibility Toggle */}
                     <button 
                         onClick={() => setConfig({ ...config, bgVisible: !config.bgVisible })}
                         className={`p-3 rounded-xl border transition-all shadow-lg ${config.bgVisible ? 'bg-zinc-900 border-zinc-800 text-indigo-400' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}
+                        title="Toggle Background Visibility"
                     >
                         {config.bgVisible ? '👁️' : '🕶️'}
                     </button>
 
+                    {/* Hardware Toggle */}
                     <button 
                         onClick={onToggleCamera}
                         className={`hidden sm:flex p-3 rounded-xl border transition-all shadow-lg ${isCameraActive ? 'bg-zinc-900 border-indigo-900/50 text-indigo-400' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+                        title="Hardware Camera"
                     >
                         📷
                     </button>
 
+                    {/* Record Button */}
                     <button 
                         onClick={onToggleRecord} 
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg ${isRecording ? 'bg-red-500/30 text-red-500 ring-2 ring-red-500 animate-pulse' : 'bg-zinc-900 border border-zinc-800 text-red-600 hover:border-red-900/50'}`} 
+                        title={isRecording ? "Stop Recording" : "Start Recording"}
                     >
                         <div className={`w-4 h-4 bg-current shadow-sm transition-all duration-300 ${isRecording ? 'rounded-sm' : 'rounded-full'}`}/>
                     </button>
                 </div>
 
+                {/* Mobile Speed Row */}
                 <div className="flex sm:hidden col-span-3 items-center gap-3 px-3 py-1 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
                     <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">SPD</span>
                     <input 

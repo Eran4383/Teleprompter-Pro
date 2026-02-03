@@ -24,21 +24,6 @@ export enum AppMode {
     PROMPTER = 'PROMPTER',
 }
 
-export type AutomationMode = 'IDLE' | 'RECORDING' | 'PLAYBACK';
-
-export interface AutomationKeyframe {
-    time: number;
-    offset: number;
-}
-
-export interface AutomationTake {
-    id: string;
-    scriptId: string;
-    date: string;
-    keyframes: AutomationKeyframe[];
-    duration: number;
-}
-
 export type VideoFilterType = 'none' | 'warm' | 'cool' | 'bw';
 export type BackgroundMode = 'camera' | 'video';
 

@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppMode, ScriptSegment, SavedScript, PromptConfig, AutomationMode, AutomationTake } from '../types';
+import { AppMode, ScriptSegment, SavedScript, PromptConfig } from '../types';
 import { DEFAULT_SCRIPT, DEFAULT_FONT_SIZE } from '../constants';
 
 interface AppState {
@@ -26,15 +26,6 @@ interface AppState {
     setElapsedTime: (time: number | ((prev: number) => number)) => void;
     speedMultiplier: number;
     setSpeedMultiplier: (speed: number) => void;
-
-    // Automation (Director Engine)
-    automationMode: AutomationMode;
-    setAutomationMode: (mode: AutomationMode) => void;
-    takes: AutomationTake[];
-    addTake: (take: AutomationTake) => void;
-    deleteTake: (id: string) => void;
-    activeTakeId: string | null;
-    setActiveTakeId: (id: string | null) => void;
 
     // Config
     config: PromptConfig;
@@ -83,14 +74,6 @@ export const useAppStore = create<AppState>()(
             speedMultiplier: 1,
             setSpeedMultiplier: (speedMultiplier) => set({ speedMultiplier }),
 
-            automationMode: 'IDLE',
-            setAutomationMode: (automationMode) => set({ automationMode }),
-            takes: [],
-            addTake: (take) => set((state) => ({ takes: [take, ...state.takes] })),
-            deleteTake: (id) => set((state) => ({ takes: state.takes.filter(t => t.id !== id) })),
-            activeTakeId: null,
-            setActiveTakeId: (activeTakeId) => set({ activeTakeId }),
-
             config: {
                 fontSize: DEFAULT_FONT_SIZE,
                 isMirrored: false,
@@ -132,11 +115,10 @@ export const useAppStore = create<AppState>()(
             setToast: (toast) => set({ toast }),
         }),
         {
-            name: 'teleprompter_v2_storage_v5',
+            name: 'teleprompter_v2_storage_v4',
             partialize: (state) => ({
                 config: state.config,
                 savedScripts: state.savedScripts,
-                takes: state.takes,
             }),
         }
     )
