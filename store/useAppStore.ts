@@ -92,6 +92,7 @@ export const useAppStore = create<AppState>()(
                 brightness: 1.0,
                 contrast: 1.0,
                 saturation: 1.0,
+                videoSyncEnabled: true,
             },
             setConfig: (configUpdate) => set((state) => ({
                 config: typeof configUpdate === 'function' ? configUpdate(state.config) : configUpdate
@@ -114,7 +115,7 @@ export const useAppStore = create<AppState>()(
             setToast: (toast) => set({ toast }),
         }),
         {
-            name: 'teleprompter_v2_storage_v3',
+            name: 'teleprompter_v2_storage_v4',
             partialize: (state) => ({
                 config: state.config,
                 savedScripts: state.savedScripts,

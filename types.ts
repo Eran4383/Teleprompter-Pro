@@ -48,4 +48,6 @@ export interface PromptConfig {
     brightness: number; // 0.5 to 2.5
     contrast: number;   // 0.5 to 2.5
     saturation: number; // 0 to 2.5
+    // Playback Sync
+    videoSyncEnabled: boolean;
 }

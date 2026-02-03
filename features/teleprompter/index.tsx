@@ -85,6 +85,7 @@ export const PrompterFeature: React.FC = () => {
                 isOpen={showSettings} 
                 onClose={() => setShowSettings(false)} 
                 applyCameraConstraint={applyCameraConstraint}
+                videoRef={videoRef}
             />
 
             <ControlBar 

@@ -5,14 +5,16 @@ import { SourceSelector } from './SettingsParts/SourceSelector';
 import { FocalControls } from './SettingsParts/FocalControls';
 import { TransformControls } from './SettingsParts/TransformControls';
 import { AppearanceControls } from './SettingsParts/AppearanceControls';
+import { PlaybackModeSelector, VideoScrubber } from './SettingsParts/Playback';
 
 interface SettingsMenuProps {
     isOpen: boolean;
     onClose: () => void;
     applyCameraConstraint: (constraint: string, value: any) => Promise<void>;
+    videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
-export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, applyCameraConstraint }) => {
+export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, applyCameraConstraint, videoRef }) => {
     const { 
         config, isCameraActive, cameraCapabilities, cameraSettings 
     } = useAppStore();
@@ -23,9 +25,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, app
 
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
         setIsDragging(true);
-        // Fix: Explicitly cast to React.TouchEvent to avoid conflict with native TouchEvent type
         const clientX = 'touches' in e ? (e as React.TouchEvent).touches[0].clientX : (e as React.MouseEvent).clientX;
-        // Fix: Explicitly cast to React.TouchEvent to avoid conflict with native TouchEvent type
         const clientY = 'touches' in e ? (e as React.TouchEvent).touches[0].clientY : (e as React.MouseEvent).clientY;
         setDragOffset({ x: clientX - pos.x, y: clientY - pos.y });
     };
@@ -77,6 +77,14 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, app
             {/* Atomic Parts Composition */}
             <div className="space-y-6 pb-2">
                 <SourceSelector />
+                
+                {config.bgMode === 'video' && (
+                    <section className="space-y-4 pt-4 border-t border-zinc-900">
+                        <PlaybackModeSelector />
+                        <VideoScrubber videoRef={videoRef} />
+                    </section>
+                )}
+
                 <FocalControls />
                 <TransformControls />
                 <AppearanceControls />

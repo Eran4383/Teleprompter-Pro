@@ -87,13 +87,17 @@ export const useTeleprompterLoop = (
 
             if (config.bgMode === 'video' && videoRef.current) {
                 const video = videoRef.current;
+                
+                // Ensure video plays/pauses with prompter
                 if (video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
                 if (video.playbackRate !== speedMultiplier) {
                     video.playbackRate = speedMultiplier;
                 }
-                if (time - lastSyncTimeRef.current > 500) {
+
+                // Only force sync if enabled
+                if (config.videoSyncEnabled && time - lastSyncTimeRef.current > 500) {
                     const expectedVideoTime = currentElapsed / 1000;
                     const actualVideoTime = video.currentTime;
                     if (!video.ended) {
@@ -111,7 +115,7 @@ export const useTeleprompterLoop = (
 
         lastTimeRef.current = time;
         requestRef.current = requestAnimationFrame(animate);
-    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, videoRef, setIsPlaying]);
+    }, [isPlaying, speedMultiplier, totalDuration, setElapsedTime, elapsedTime, config.bgMode, config.videoSyncEnabled, videoRef, setIsPlaying]);
 
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
