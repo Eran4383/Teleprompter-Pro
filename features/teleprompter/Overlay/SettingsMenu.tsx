@@ -6,6 +6,7 @@ import { FocalControls } from './SettingsParts/FocalControls';
 import { TransformControls } from './SettingsParts/TransformControls';
 import { AppearanceControls } from './SettingsParts/AppearanceControls';
 import { PlaybackModeSelector } from './SettingsParts/Playback';
+import { DirectorControls } from './SettingsParts/DirectorControls';
 
 interface SettingsMenuProps {
     isOpen: boolean;
@@ -61,7 +62,6 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, app
             style={{ left: `${pos.x}px`, top: `${pos.y}px`, cursor: isDragging ? 'grabbing' : 'auto' }}
             onDoubleClick={e => e.stopPropagation()}
         >
-            {/* Draggable Header */}
             <div 
                 className="flex items-center justify-between border-b border-zinc-800 pb-4 cursor-grab active:cursor-grabbing"
                 onMouseDown={handleDragStart}
@@ -71,24 +71,17 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, app
                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"/>
                      <span className="font-black text-white text-sm uppercase tracking-tight">Studio Master</span>
                 </div>
-                <button onClick={onClose} className="w-6 h-6 flex items-center justify-center bg-zinc-900 rounded-full text-zinc-600 hover:text-white transition-colors" title="Close Panel">✕</button>
+                <button onClick={onClose} className="w-6 h-6 flex items-center justify-center bg-zinc-900 rounded-full text-zinc-600 hover:text-white transition-colors">✕</button>
             </div>
 
-            {/* Atomic Parts Composition */}
             <div className="space-y-6 pb-2">
+                <DirectorControls />
                 <SourceSelector />
-                
-                {config.bgMode === 'video' && (
-                    <section className="space-y-4 pt-4 border-t border-zinc-900">
-                        <PlaybackModeSelector />
-                    </section>
-                )}
-
+                {config.bgMode === 'video' && <PlaybackModeSelector />}
                 <FocalControls />
                 <TransformControls />
                 <AppearanceControls />
 
-                {/* Hardware Section (Condensed) */}
                 {config.bgMode === 'camera' && isCameraActive && cameraCapabilities && (
                     <section className="space-y-3 pt-4 border-t border-zinc-900">
                         <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Hardware Optic</h3>
