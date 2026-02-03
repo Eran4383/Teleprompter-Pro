@@ -93,7 +93,6 @@ export const useAppStore = create<AppState>()(
                 contrast: 1.0,
                 saturation: 1.0,
                 videoSyncEnabled: true,
-                automationMode: 'manual',
             },
             setConfig: (configUpdate) => set((state) => ({
                 config: typeof configUpdate === 'function' ? configUpdate(state.config) : configUpdate

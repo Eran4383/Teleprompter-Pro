@@ -1,7 +1,6 @@
 
 import { useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { useAutomationStore } from '../store/useAutomationStore';
 import { ScriptSegment, SavedScript } from '../types';
 import { optimizeScript, generateScriptFromTopic } from '../services/geminiService';
 
@@ -15,12 +14,11 @@ export const useScriptActions = () => {
         setActiveEditorTab
     } = useAppStore();
 
-    const { tracks, setTrack } = useAutomationStore();
-
     const saveCurrentToHistory = useCallback((segmentsToSave: ScriptSegment[]) => {
         if (!segmentsToSave || segmentsToSave.length === 0 || (segmentsToSave.length === 1 && !segmentsToSave[0].text.trim())) return;
 
         const rawContent = segmentsToSave.map(s => s.text).join('\n');
+        
         const firstLine = segmentsToSave.find(s => s.text.trim().length > 0)?.text || "Untitled Script";
         const generatedTitle = firstLine.split(' ').slice(0, 3).join(' ') + (firstLine.split(' ').length > 3 ? '...' : '');
 
@@ -50,35 +48,13 @@ export const useScriptActions = () => {
         setSavedScripts(updatedHistory);
     }, [currentScriptId, savedScripts, setCurrentScriptId, setSavedScripts]);
 
-    const bakeAutomationToNewScript = useCallback(() => {
-        if (!currentScriptId) return;
-        const track = tracks[currentScriptId];
-        if (!track || track.length === 0) return;
-
-        const original = savedScripts.find(s => s.id === currentScriptId);
-        if (!original) return;
-
-        const newId = `baked-${Date.now()}`;
-        const newTitle = `${original.title} (Perf Sync)`;
-        
-        const bakedScript: SavedScript = {
-            ...original,
-            id: newId,
-            title: newTitle,
-            date: new Date().toISOString()
-        };
-
-        setSavedScripts([bakedScript, ...savedScripts]);
-        setTrack(newId, [...track]);
-        setCurrentScriptId(newId);
-        setToast({ msg: "Performance baked to new version", type: "success" });
-    }, [currentScriptId, savedScripts, tracks, setSavedScripts, setTrack, setCurrentScriptId, setToast]);
-
     const syncTextToSegments = useCallback(() => {
         const lines = rawText.split('\n').filter(line => line.trim() !== '');
         const newSegments: ScriptSegment[] = lines.map((line, index) => {
             const existing = segments[index];
-            if (existing && existing.text === line) return existing;
+            if (existing && existing.text === line) {
+                return existing;
+            }
             return {
                 id: existing?.id || `seg-${Date.now()}-${index}`,
                 text: line,
@@ -120,7 +96,6 @@ export const useScriptActions = () => {
 
     return {
         saveCurrentToHistory,
-        bakeAutomationToNewScript,
         syncTextToSegments,
         handleAIOptimize,
         handleAIGenerate
