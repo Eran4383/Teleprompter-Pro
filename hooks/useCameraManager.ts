@@ -1,5 +1,4 @@
 
-// Fix: Import React to resolve namespace error on React.RefObject
 import React, { useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
 
@@ -32,11 +31,8 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
             setIsCameraActive(false);
             setCameraCapabilities(null);
             if (isRecording) stopRecording();
+            return null;
         } else {
-            if (config.bgMode === 'video') {
-                // If in video mode, we don't start the camera stream automatically
-                // but we allow the toggle if requested via UI logic
-            }
             try {
                 const constraints: MediaStreamConstraints = { 
                     video: { 
@@ -59,13 +55,16 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                     } else {
                         setCameraCapabilities({} as any); 
                     }
+                    return stream;
                 }
+                return null;
             } catch (error) {
                 console.error("Camera access error:", error);
                 alert("Could not access camera. Please allow permissions.");
+                return null;
             }
         }
-    }, [isCameraActive, setIsCameraActive, setCameraCapabilities, setCameraSettings, isRecording, stopRecording, videoRef, config.bgMode]);
+    }, [isCameraActive, setIsCameraActive, setCameraCapabilities, setCameraSettings, isRecording, stopRecording, videoRef]);
 
     const applyCameraConstraint = useCallback(async (constraint: string, value: any) => {
         const stream = videoRef.current?.srcObject as MediaStream;
@@ -82,14 +81,15 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
         }
     }, [setCameraSettings, videoRef]);
 
-    const startRecording = useCallback(() => {
-        if (!isCameraActive || !videoRef.current?.srcObject) {
+    const startRecording = useCallback((providedStream?: MediaStream) => {
+        const stream = providedStream || (videoRef.current?.srcObject as MediaStream);
+        
+        if (!stream) {
             alert("Please enable the camera first.");
             return;
         }
         
         chunksRef.current = [];
-        const stream = videoRef.current.srcObject as MediaStream;
         
         try {
             const mimeTypes = [
@@ -100,7 +100,6 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                 'video/webm'
             ];
             let selectedMimeType = '';
-            // Fix: Corrected typo 'mimetypes' to 'mimeTypes'
             for (const type of mimeTypes) {
                 if (MediaRecorder.isTypeSupported(type)) { selectedMimeType = type; break; }
             }
@@ -129,7 +128,7 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
             console.error("Recorder error:", e);
             alert("Failed to start recording.");
         }
-    }, [isCameraActive, setIsRecording, videoRef]);
+    }, [setIsRecording, videoRef]);
 
     return {
         toggleCamera,

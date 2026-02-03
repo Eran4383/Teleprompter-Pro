@@ -22,11 +22,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
 
         if (config.bgMode === 'video' && videoFileUrl) {
             video.srcObject = null;
-            video.src = videoFileUrl;
+            if (video.src !== videoFileUrl) {
+                video.src = videoFileUrl;
+                video.load();
+            }
             video.loop = false;
             video.muted = config.videoVolume === 0;
             video.volume = config.videoVolume;
-            video.load();
         } else if (config.bgMode === 'camera') {
             video.src = '';
             video.muted = true;
@@ -53,7 +55,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
     return (
         <video 
             ref={videoRef} 
-            autoPlay 
             playsInline 
             muted={config.bgMode === 'camera' || config.videoVolume === 0}
             className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700 ${finalOpacity}`}

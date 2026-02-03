@@ -9,6 +9,7 @@ interface PrompterCanvasProps {
     segmentTimeMap: { start: number; end: number; id: string }[];
     onUserInteraction: () => void;
     onScroll: () => void;
+    onPlayPause: () => void;
 }
 
 export const PrompterCanvas = forwardRef<HTMLDivElement, PrompterCanvasProps>(({
@@ -16,12 +17,20 @@ export const PrompterCanvas = forwardRef<HTMLDivElement, PrompterCanvasProps>(({
     elapsedTime,
     segmentTimeMap,
     onUserInteraction,
-    onScroll
+    onScroll,
+    onPlayPause
 }, ref) => {
     const { segments, config } = useAppStore();
 
+    const handleCanvasClick = (e: React.MouseEvent) => {
+        // Only trigger if clicking the background, not specific interactive elements
+        if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('py-[100vh]')) {
+            onPlayPause();
+        }
+    };
+
     return (
-        <div className="flex-1 relative overflow-hidden z-10" onDoubleClick={e => e.stopPropagation()}>
+        <div className="flex-1 relative overflow-hidden z-10" onDoubleClick={e => e.stopPropagation()} onClick={handleCanvasClick}>
             {/* Focal Line Guide - Dynamic Position */}
             <div 
                 className="absolute left-0 right-0 pointer-events-none z-20 transition-all duration-300 ease-out"
@@ -38,7 +47,7 @@ export const PrompterCanvas = forwardRef<HTMLDivElement, PrompterCanvasProps>(({
                 onScroll={onScroll} 
                 className={`h-full overflow-y-auto relative ${config.isMirrored ? 'scale-y-[-1] scale-x-[-1]' : ''} touch-pan-y no-scrollbar`}
             >
-                <div className="py-[100vh] px-8 max-w-5xl mx-auto">
+                <div className="py-[100vh] px-8 max-w-5xl mx-auto cursor-pointer">
                     {segments.map((seg, idx) => {
                         const isActive = elapsedTime >= segmentTimeMap[idx]?.start && elapsedTime < segmentTimeMap[idx]?.end;
                         return (

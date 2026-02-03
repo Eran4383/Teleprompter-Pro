@@ -34,39 +34,29 @@ export const PrompterFeature: React.FC = () => {
 
     const { isCameraActive, isRecording, config } = useAppStore();
 
-    const onToggleRecord = useCallback(() => {
+    const onToggleRecord = useCallback(async () => {
         if (isRecording) {
             stopRecording();
         } else {
             if (config.bgMode === 'video') {
-                // Future optimization: Record the canvas + audio for dubbing
                 alert("Recording is currently only supported in Camera Mode.");
                 return;
             }
             if (!isCameraActive) {
-                toggleCamera().then(() => startRecording());
+                const stream = await toggleCamera();
+                if (stream) {
+                    // Small delay to ensure stream is attached to video element if needed
+                    setTimeout(() => startRecording(stream), 300);
+                }
             } else {
                 startRecording();
             }
         }
     }, [isRecording, isCameraActive, stopRecording, toggleCamera, startRecording, config.bgMode]);
 
-    const handleGlobalDoubleClick = (e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
-        const isInteractive = ['BUTTON', 'INPUT', 'TEXTAREA'].includes(target.tagName) || target.closest('button');
-        if (isInteractive) return;
-        
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
-        }
-    };
-
     return (
         <div 
             className={`fixed inset-0 z-50 flex flex-col overflow-hidden transition-all duration-700 ease-in-out ${isCameraActive || config.bgMode === 'video' ? 'bg-black/40 backdrop-blur-3xl' : 'bg-zinc-950'} text-white`}
-            onDoubleClick={handleGlobalDoubleClick}
         >
             <VideoLayer videoRef={videoRef} />
             
@@ -79,6 +69,7 @@ export const PrompterFeature: React.FC = () => {
                 segmentTimeMap={segmentTimeMap}
                 onUserInteraction={handleUserInteraction}
                 onScroll={handleScroll}
+                onPlayPause={handlePlayPause}
             />
 
             <SettingsMenu 
