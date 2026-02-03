@@ -17,12 +17,11 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
 
     useEffect(() => {
         if (!videoRef.current) return;
-        
         const video = videoRef.current;
 
         if (config.bgMode === 'video' && videoFileUrl) {
-            video.srcObject = null;
             if (video.src !== videoFileUrl) {
+                video.srcObject = null;
                 video.src = videoFileUrl;
                 video.load();
             }
@@ -30,10 +29,22 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
             video.muted = config.videoVolume === 0;
             video.volume = config.videoVolume;
         } else if (config.bgMode === 'camera') {
-            video.src = '';
+            // DO NOT clear srcObject here. The CameraManager handles it.
+            // Only clear the file source if it exists.
+            if (video.src) {
+                video.src = '';
+                video.load(); // Reset the video element state
+            }
+            // Ensure camera stream is actually playing if active
+            if (isCameraActive && video.srcObject) {
+                video.play().catch(() => {
+                    // This can happen if the browser blocks autoplay before interaction
+                    console.log("Autoplay blocked, waiting for interaction");
+                });
+            }
             video.muted = true;
         }
-    }, [config.bgMode, videoFileUrl, videoRef]);
+    }, [config.bgMode, videoFileUrl, isCameraActive, videoRef]);
 
     useEffect(() => {
         if (videoRef.current && config.bgMode === 'video') {
@@ -56,8 +67,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({ videoRef }) => {
         <video 
             ref={videoRef} 
             playsInline 
+            autoPlay
             muted={config.bgMode === 'camera' || config.videoVolume === 0}
-            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700 ${finalOpacity}`}
+            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-700 pointer-events-none ${finalOpacity}`}
             style={{ 
                 transform: `
                     ${config.mirrorVideo ? 'scaleX(-1)' : ''} 

@@ -7,6 +7,7 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
         isCameraActive, setIsCameraActive,
         isRecording, setIsRecording,
         setCameraCapabilities, setCameraSettings,
+        setCameraSettings: setStoreSettings,
         cameraSettings,
         config
     } = useAppStore();
@@ -45,7 +46,12 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
+                    const video = videoRef.current;
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play().catch(e => console.error("Video play failed", e));
+                    };
+                    
                     setIsCameraActive(true);
                     
                     const track = stream.getVideoTracks()[0];

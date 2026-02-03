@@ -15,7 +15,6 @@ export const useTeleprompterLoop = (
 
     const requestRef = useRef<number | undefined>(undefined);
     const lastTimeRef = useRef<number | undefined>(undefined);
-    const lastSyncTimeRef = useRef<number>(0);
     const isUserInteracting = useRef(false);
     const scrollTimeoutRef = useRef<number | null>(null);
 
@@ -54,30 +53,42 @@ export const useTeleprompterLoop = (
         const segMap = segmentTimeMap[activeIdx];
         if (el && segMap) {
             const ratio = Math.max(0, Math.min(1, (focalY - el.offsetTop) / el.clientHeight));
-            setElapsedTime(segMap.start + (segMap.duration * ratio));
+            const newTime = segMap.start + (segMap.duration * ratio);
+            setElapsedTime(newTime);
+            return newTime;
         }
-    }, [containerRef, segmentRefs, segments.length, setElapsedTime, segmentTimeMap, config.focalPosition]);
+        return elapsedTime;
+    }, [containerRef, segmentRefs, segments.length, setElapsedTime, segmentTimeMap, config.focalPosition, elapsedTime]);
 
     const animate = useCallback((time: number) => {
         if (lastTimeRef.current !== undefined && isPlaying) {
             const deltaTime = time - lastTimeRef.current;
-            const nextTime = elapsedTime + (deltaTime * speedMultiplier);
-            const currentElapsed = Math.min(totalDuration, nextTime);
             
-            setElapsedTime(currentElapsed);
-            if (currentElapsed >= totalDuration && config.bgMode === 'camera') setIsPlaying(false);
-
-            if (config.bgMode === 'video' && videoRef.current) {
-                const video = videoRef.current;
-                if (video.paused && !video.ended && isPlaying) video.play().catch(() => {});
-                if (video.playbackRate !== speedMultiplier) video.playbackRate = speedMultiplier;
+            if (!isUserInteracting.current) {
+                const nextTime = elapsedTime + (deltaTime * speedMultiplier);
+                const currentElapsed = Math.min(totalDuration, nextTime);
+                setElapsedTime(currentElapsed);
                 
-                if (config.videoSyncEnabled) {
-                    const threshold = isUserInteracting.current ? 0.05 : 0.15;
-                    const diff = Math.abs(currentElapsed / 1000 - video.currentTime);
-                    if (diff > threshold && !video.ended) {
-                        video.currentTime = currentElapsed / 1000;
+                if (currentElapsed >= totalDuration && config.bgMode === 'camera') setIsPlaying(false);
+
+                if (config.bgMode === 'video' && videoRef.current) {
+                    const video = videoRef.current;
+                    if (video.paused && !video.ended && isPlaying) video.play().catch(() => {});
+                    if (video.playbackRate !== speedMultiplier) video.playbackRate = speedMultiplier;
+                    
+                    if (config.videoSyncEnabled) {
+                        const diff = Math.abs(currentElapsed / 1000 - video.currentTime);
+                        if (diff > 0.15 && !video.ended) {
+                            video.currentTime = currentElapsed / 1000;
+                        }
                     }
+                }
+            } else if (config.videoSyncEnabled && config.bgMode === 'video' && videoRef.current) {
+                // Throttle seeking during interaction to prevent "boomerang" stutter
+                const video = videoRef.current;
+                const diff = Math.abs(elapsedTime / 1000 - video.currentTime);
+                if (diff > 0.5) { // Larger threshold during active drag
+                    video.currentTime = elapsedTime / 1000;
                 }
             }
         }
@@ -108,7 +119,10 @@ export const useTeleprompterLoop = (
     }, [elapsedTime, segmentTimeMap, isPlaying, config.focalPosition]);
 
     const handlePlayPause = () => {
-        if (isUserInteracting.current) { syncTimeFromScroll(); isUserInteracting.current = false; }
+        if (isUserInteracting.current) { 
+            syncTimeFromScroll(); 
+            isUserInteracting.current = false; 
+        }
         setIsPlaying(!isPlaying);
         lastTimeRef.current = undefined;
     };
@@ -116,19 +130,31 @@ export const useTeleprompterLoop = (
     const handleStop = () => {
         setIsPlaying(false); setElapsedTime(0); isUserInteracting.current = false;
         lastTimeRef.current = undefined;
-        if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.pause(); }
+        if (videoRef.current) { 
+            videoRef.current.currentTime = 0; 
+            videoRef.current.pause(); 
+        }
     };
 
     const handleUserInteraction = () => {
         isUserInteracting.current = true;
+        if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
+        // While user is interacting, the timeline's last recorded frame must be updated 
+        // to now so it doesn't "jump" the delta-time when the interaction ends.
+        lastTimeRef.current = performance.now();
     };
 
     const handleScroll = () => {
-        if (isUserInteracting.current) syncTimeFromScroll();
+        if (isUserInteracting.current) {
+            syncTimeFromScroll();
+        }
+        
         if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = window.setTimeout(() => { 
-            isUserInteracting.current = false; 
-        }, 200); // Faster resumption to minimize highlight drift
+            isUserInteracting.current = false;
+            // After interaction ends, update the anchor time for the animation loop
+            lastTimeRef.current = performance.now();
+        }, 150); 
     };
 
     return {
