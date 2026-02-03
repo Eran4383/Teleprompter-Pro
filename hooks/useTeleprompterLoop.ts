@@ -13,10 +13,10 @@ export const useTeleprompterLoop = (
         isPlaying, setIsPlaying,
         elapsedTime, setElapsedTime,
         speedMultiplier,
-        config
+        config, setConfig
     } = useAppStore();
 
-    const { record, getInterpolatedPosition } = useAutomationEngine();
+    const { record, commit, getInterpolatedPosition } = useAutomationEngine();
 
     const requestRef = useRef<number | undefined>(undefined);
     const lastTimeRef = useRef<number | undefined>(undefined);
@@ -90,32 +90,28 @@ export const useTeleprompterLoop = (
 
             if (config.bgMode === 'video' && videoRef.current) {
                 const video = videoRef.current;
-                
                 if (video.paused && !video.ended) {
                     video.play().catch(() => {});
                 }
                 if (video.playbackRate !== speedMultiplier) {
                     video.playbackRate = speedMultiplier;
                 }
-
                 if (config.videoSyncEnabled && time - lastSyncTimeRef.current > 500) {
                     const expectedVideoTime = currentElapsed / 1000;
-                    const actualVideoTime = video.currentTime;
                     if (!video.ended) {
-                        const drift = Math.abs(expectedVideoTime - actualVideoTime);
-                        if (drift > 0.15) {
-                            video.currentTime = expectedVideoTime;
-                        }
+                        const drift = Math.abs(expectedVideoTime - video.currentTime);
+                        if (drift > 0.15) video.currentTime = expectedVideoTime;
                     }
                     lastSyncTimeRef.current = time;
                 }
             }
 
-            // --- Automation Performance Drive ---
+            // High Performance Buffer Record (Captures final state of scroll in this frame)
             if (config.automationMode === 'recording' && containerRef.current) {
                 record(containerRef.current.scrollTop);
             }
             
+            // Automation Playback Driver
             if (config.automationMode === 'playback' && containerRef.current) {
                 const targetScroll = getInterpolatedPosition(currentElapsed);
                 if (targetScroll !== null) {
@@ -140,33 +136,19 @@ export const useTeleprompterLoop = (
     }, [animate]);
 
     useEffect(() => {
-        // Only run auto-scroll if NOT in Automation Playback Mode
+        // Linear Auto-Scroll Logic (Active in Manual & Recording modes)
         if (!isPlaying || isManualScroll.current || !containerRef.current || config.automationMode === 'playback') return;
 
-        const activeSegmentIndex = segmentTimeMap.findIndex(
-            map => elapsedTime >= map.start && elapsedTime < map.end
-        );
+        const activeIdx = segmentTimeMap.findIndex(m => elapsedTime >= m.start && elapsedTime < m.end);
 
-        if (activeSegmentIndex !== -1) {
-            const activeEl = segmentRefs.current[activeSegmentIndex];
+        if (activeIdx !== -1) {
+            const activeEl = segmentRefs.current[activeIdx];
             if (activeEl) {
-                const containerHeight = containerRef.current.clientHeight;
-                const elTop = activeEl.offsetTop;
-                const elHeight = activeEl.clientHeight;
-                const segmentData = segmentTimeMap[activeSegmentIndex];
-                const segmentProgress = (elapsedTime - segmentData.start) / (segmentData.end - segmentData.start);
-                
-                const targetScroll = elTop - (containerHeight * config.focalPosition) + (elHeight / 2);
-                const scrollOffset = targetScroll + (elHeight * segmentProgress) - (elHeight/2);
-
-                containerRef.current.scrollTo({ top: scrollOffset, behavior: 'auto' });
-            }
-        } else if (elapsedTime === 0) {
-            const firstEl = segmentRefs.current[0];
-            if (firstEl && containerRef.current) {
-                 const containerHeight = containerRef.current.clientHeight;
-                 const targetScroll = firstEl.offsetTop - (containerHeight * config.focalPosition) + (firstEl.clientHeight / 2);
-                 containerRef.current.scrollTo({ top: targetScroll, behavior: 'smooth' });
+                const cHeight = containerRef.current.clientHeight;
+                const segData = segmentTimeMap[activeIdx];
+                const progress = (elapsedTime - segData.start) / (segData.end - segData.start);
+                const targetScroll = activeEl.offsetTop - (cHeight * config.focalPosition) + (activeEl.clientHeight * progress);
+                containerRef.current.scrollTo({ top: targetScroll, behavior: 'auto' });
             }
         }
     }, [elapsedTime, segmentTimeMap, isPlaying, containerRef, segmentRefs, config.focalPosition, config.automationMode]);
@@ -181,6 +163,7 @@ export const useTeleprompterLoop = (
     };
 
     const handleStop = () => {
+        if (config.automationMode === 'recording') commit();
         setIsPlaying(false);
         setElapsedTime(0);
         isManualScroll.current = false;
@@ -192,22 +175,16 @@ export const useTeleprompterLoop = (
     };
 
     const handleUserInteraction = () => {
-        // If recording automation, we WANT manual interaction to be recorded, so we don't stop the prompter.
-        if (isPlaying && config.automationMode === 'recording') {
-            isManualScroll.current = true;
-            return;
-        }
-
-        if (isPlaying && config.videoSyncEnabled) {
+        // Safety: If in playback, manual interaction pauses drive to prevent fighting
+        if (isPlaying && config.automationMode === 'playback') {
             setIsPlaying(false);
+            return;
         }
         isManualScroll.current = true;
     };
 
     const handleScroll = () => {
-        if (!isPlaying) {
-            syncTimeFromScroll();
-        }
+        if (!isPlaying) syncTimeFromScroll();
     };
 
     return {
