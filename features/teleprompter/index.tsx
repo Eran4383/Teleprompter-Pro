@@ -19,7 +19,8 @@ export const PrompterFeature: React.FC = () => {
         toggleCamera,
         applyCameraConstraint,
         startRecording,
-        stopRecording
+        stopRecording,
+        activeStream
     } = useCameraManager(videoRef);
 
     const {
@@ -38,21 +39,18 @@ export const PrompterFeature: React.FC = () => {
         if (isRecording) {
             stopRecording();
         } else {
-            if (config.bgMode === 'video') {
-                alert("Recording is currently only supported in Camera Mode.");
-                return;
-            }
+            // Support recording in both modes now
             if (!isCameraActive) {
                 const stream = await toggleCamera();
                 if (stream) {
-                    // Small delay to ensure stream is attached to video element if needed
+                    // Small delay to ensure stream is fully ready
                     setTimeout(() => startRecording(stream), 300);
                 }
             } else {
                 startRecording();
             }
         }
-    }, [isRecording, isCameraActive, stopRecording, toggleCamera, startRecording, config.bgMode]);
+    }, [isRecording, isCameraActive, stopRecording, toggleCamera, startRecording]);
 
     return (
         <div 

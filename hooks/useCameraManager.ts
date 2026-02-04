@@ -7,12 +7,11 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
         isCameraActive, setIsCameraActive,
         isRecording, setIsRecording,
         setCameraCapabilities, setCameraSettings,
-        setCameraSettings: setStoreSettings,
-        cameraSettings,
         config
     } = useAppStore();
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const activeStreamRef = useRef<MediaStream | null>(null);
     const chunksRef = useRef<Blob[]>([]);
 
     const stopRecording = useCallback(() => {
@@ -24,9 +23,9 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
 
     const toggleCamera = useCallback(async () => {
         if (isCameraActive) {
-            const stream = videoRef.current?.srcObject as MediaStream;
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+            if (activeStreamRef.current) {
+                activeStreamRef.current.getTracks().forEach(track => track.stop());
+                activeStreamRef.current = null;
             }
             if (videoRef.current) videoRef.current.srcObject = null;
             setIsCameraActive(false);
@@ -45,35 +44,37 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                 };
                 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                if (videoRef.current) {
+                activeStreamRef.current = stream;
+
+                // Only attach to UI video if we are in camera background mode
+                if (videoRef.current && config.bgMode === 'camera') {
                     const video = videoRef.current;
                     video.srcObject = stream;
                     video.onloadedmetadata = () => {
                         video.play().catch(e => console.error("Video play failed", e));
                     };
-                    
-                    setIsCameraActive(true);
-                    
-                    const track = stream.getVideoTracks()[0];
-                    if (track.getCapabilities) {
-                        setCameraCapabilities(track.getCapabilities());
-                        setCameraSettings(track.getSettings());
-                    } else {
-                        setCameraCapabilities({} as any); 
-                    }
-                    return stream;
                 }
-                return null;
+                
+                setIsCameraActive(true);
+                
+                const track = stream.getVideoTracks()[0];
+                if (track.getCapabilities) {
+                    setCameraCapabilities(track.getCapabilities());
+                    setCameraSettings(track.getSettings());
+                } else {
+                    setCameraCapabilities({} as any); 
+                }
+                return stream;
             } catch (error) {
                 console.error("Camera access error:", error);
                 alert("Could not access camera. Please allow permissions.");
                 return null;
             }
         }
-    }, [isCameraActive, setIsCameraActive, setCameraCapabilities, setCameraSettings, isRecording, stopRecording, videoRef]);
+    }, [isCameraActive, setIsCameraActive, setCameraCapabilities, setCameraSettings, isRecording, stopRecording, videoRef, config.bgMode]);
 
     const applyCameraConstraint = useCallback(async (constraint: string, value: any) => {
-        const stream = videoRef.current?.srcObject as MediaStream;
+        const stream = activeStreamRef.current;
         if (!stream) return;
         const track = stream.getVideoTracks()[0];
         
@@ -85,10 +86,10 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
         } catch (e) {
             console.error("Failed to apply constraint", e);
         }
-    }, [setCameraSettings, videoRef]);
+    }, [setCameraSettings]);
 
     const startRecording = useCallback((providedStream?: MediaStream) => {
-        const stream = providedStream || (videoRef.current?.srcObject as MediaStream);
+        const stream = providedStream || activeStreamRef.current;
         
         if (!stream) {
             alert("Please enable the camera first.");
@@ -111,8 +112,15 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
             }
             if (!selectedMimeType) selectedMimeType = 'video/webm';
 
-            const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType, videoBitsPerSecond: 5000000 });
-            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+            const recorder = new MediaRecorder(stream, { 
+                mimeType: selectedMimeType, 
+                videoBitsPerSecond: 5000000 
+            });
+            
+            recorder.ondataavailable = (e) => { 
+                if (e.data.size > 0) chunksRef.current.push(e.data); 
+            };
+            
             recorder.onstop = () => {
                 const isMp4 = selectedMimeType.includes('mp4');
                 const type = selectedMimeType.split(';')[0];
@@ -125,8 +133,12 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
                 a.download = `teleprompter-${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.${ext}`;
                 document.body.appendChild(a);
                 a.click();
-                setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+                setTimeout(() => { 
+                    document.body.removeChild(a); 
+                    window.URL.revokeObjectURL(url); 
+                }, 100);
             };
+            
             recorder.start(1000);
             setIsRecording(true);
             mediaRecorderRef.current = recorder;
@@ -134,12 +146,13 @@ export const useCameraManager = (videoRef: React.RefObject<HTMLVideoElement | nu
             console.error("Recorder error:", e);
             alert("Failed to start recording.");
         }
-    }, [setIsRecording, videoRef]);
+    }, [setIsRecording]);
 
     return {
         toggleCamera,
         applyCameraConstraint,
         startRecording,
-        stopRecording
+        stopRecording,
+        activeStream: activeStreamRef
     };
 };
