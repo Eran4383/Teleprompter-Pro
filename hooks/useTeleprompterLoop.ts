@@ -69,7 +69,11 @@ export const useTeleprompterLoop = (
                 const currentElapsed = Math.min(totalDuration, nextTime);
                 setElapsedTime(currentElapsed);
                 
-                if (currentElapsed >= totalDuration && config.bgMode === 'camera') setIsPlaying(false);
+                // Fix: Stop prompter when end reached for ALL modes to prevent stutter
+                if (currentElapsed >= totalDuration) {
+                    setIsPlaying(false);
+                    if (videoRef.current) videoRef.current.pause();
+                }
 
                 if (config.bgMode === 'video' && videoRef.current) {
                     const video = videoRef.current;
@@ -84,10 +88,12 @@ export const useTeleprompterLoop = (
                     }
                 }
             } else if (config.videoSyncEnabled && config.bgMode === 'video' && videoRef.current) {
-                // Throttle seeking during interaction to prevent "boomerang" stutter
+                // If user is interacting, pause video to prevent stuttering while seeking
                 const video = videoRef.current;
+                if (!video.paused) video.pause();
+                
                 const diff = Math.abs(elapsedTime / 1000 - video.currentTime);
-                if (diff > 0.5) { // Larger threshold during active drag
+                if (diff > 0.3) { 
                     video.currentTime = elapsedTime / 1000;
                 }
             }
@@ -123,8 +129,13 @@ export const useTeleprompterLoop = (
             syncTimeFromScroll(); 
             isUserInteracting.current = false; 
         }
-        setIsPlaying(!isPlaying);
+        const nextState = !isPlaying;
+        setIsPlaying(nextState);
         lastTimeRef.current = undefined;
+        
+        if (!nextState && videoRef.current) {
+            videoRef.current.pause();
+        }
     };
 
     const handleStop = () => {
@@ -139,8 +150,6 @@ export const useTeleprompterLoop = (
     const handleUserInteraction = () => {
         isUserInteracting.current = true;
         if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
-        // While user is interacting, the timeline's last recorded frame must be updated 
-        // to now so it doesn't "jump" the delta-time when the interaction ends.
         lastTimeRef.current = performance.now();
     };
 
@@ -152,8 +161,11 @@ export const useTeleprompterLoop = (
         if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = window.setTimeout(() => { 
             isUserInteracting.current = false;
-            // After interaction ends, update the anchor time for the animation loop
             lastTimeRef.current = performance.now();
+            // Resume video if prompter is playing
+            if (isPlaying && videoRef.current) {
+                videoRef.current.play().catch(() => {});
+            }
         }, 150); 
     };
 
